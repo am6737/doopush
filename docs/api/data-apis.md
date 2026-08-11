@@ -9,7 +9,7 @@
 | **推送日志** | [获取推送日志](#获取推送日志) | 查询推送记录列表 | JWT |
 | | [获取推送详情](#获取推送详情) | 查询单条推送的详细信息 | JWT |
 | **推送统计** | [获取推送统计](#获取推送统计) | 查询推送统计数据 | JWT |
-| | [上报推送统计](#上报推送统计) | 客户端上报点击 / 送达事件 | API Key |
+| | [上报推送统计](#上报推送统计) | 客户端上报点击 / 送达事件 | App Key |
 | **审计日志** | [获取审计日志](#获取审计日志) | 查询操作审计记录 | JWT（应用权限） |
 | | [获取操作统计](#获取操作统计) | 查询操作统计数据 | JWT（应用权限） |
 
@@ -22,9 +22,9 @@ https://doopush.com/api/v1
 ## 🔑 认证要求
 
 - **管理类查询接口**（推送日志、推送统计、审计日志）：需要登录后获得的 **JWT Token**，使用 `Authorization: Bearer <token>` 头
-- **客户端上报接口**（`POST /push/statistics/report`）：使用 **API Key**（`X-API-Key`）
+- **客户端上报接口**（`POST /push/statistics/report`）：使用 **App Key**（`X-App-Key`）
 
-API Key 不再分级（不存在 `statistics` / `device` 权限粒度），凭一把 Key 即可访问其授权的全部接口。
+App Key 不分 Scope，仅用于明确列出的客户端 SDK 接口，不能调用管理或推送发送接口。
 
 ## 📊 推送日志
 
@@ -292,7 +292,7 @@ curl -X GET "https://doopush.com/api/v1/apps/123/push/statistics?days=7" \
 
 ```bash
 curl -X POST "https://doopush.com/api/v1/apps/123/push/statistics/report" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "X-App-Key: dp_ak_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
      -H "Content-Type: application/json" \
      -d '{
        "device_token": "abc123def456ghi789...",
@@ -512,7 +512,7 @@ curl -X GET "https://doopush.com/api/v1/apps/123/audit-logs/operation-statistics
 | 状态码 | 错误码 | 描述 | 解决方案 |
 |--------|--------|------|----------|
 | 400 | 400 | 请求参数错误 | 检查查询参数格式 |
-| 401 | 401 | 未认证 | 检查 Token / API Key 是否有效 |
+| 401 | 401 | 未认证 | 检查 Token / App Key 是否有效 |
 | 403 | 403 | 无权限 | 确认当前用户对该应用有访问权限 |
 | 404 | 404 | 资源不存在 | 检查推送日志ID是否正确 |
 

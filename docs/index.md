@@ -25,7 +25,7 @@ features:
   - title: 🛠 功能丰富
     details: 支持单推、批量推送、广播推送、定时推送，提供完整的设备管理和推送统计功能
   - title: 🔑 API 接口
-    details: 提供完整的 REST API，支持 API Key 认证，让您轻松实现自动化推送
+    details: 提供完整的 REST API，支持 App Secret 认证，让您轻松实现自动化推送
   - title: 📊 数据统计
     details: 详细的推送统计和分析数据，帮助您了解推送效果和用户行为
   - title: 🔒 安全可靠
@@ -46,7 +46,7 @@ features:
 
 ### 👨‍💻 开发者资源
 
-- [**API 认证**](/api/authentication) - 了解如何使用 API Key
+- [**API 认证**](/api/authentication) - 了解 App Key 与 App Secret 的使用边界
 - [**推送接口**](/api/push-apis) - 完整的推送 API 文档
 - [**设备接口**](/api/device-apis) - 设备管理相关接口
 - [**数据接口**](/api/data-apis) - 统计数据查询接口

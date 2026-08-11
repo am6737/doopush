@@ -1,6 +1,6 @@
 # 推送接口
 
-推送接口是 DooPush 的核心功能，提供多种推送方式以满足不同的业务需求。所有推送接口都需要 **API Key 认证**。
+推送接口是 DooPush 的核心功能，提供多种推送方式以满足不同的业务需求。服务端使用 **App Secret**，控制台使用用户 JWT。
 
 ## 📋 接口概览
 
@@ -19,15 +19,15 @@ https://doopush.com/api/v1
 
 ## 🔑 认证要求
 
-所有推送接口都支持 **API Key** (`X-API-Key`) 或登录后的 **JWT Token** (`Authorization: Bearer`) 认证。当前 API Key 不再分级，凭一把 Key 即可调用全部推送接口。
+所有推送接口都支持带 Scope 的 **App Secret** 或登录后的 **JWT Token**，两者均通过 `Authorization: Bearer` 传递。App Secret 至少需要 `push:send`；广播还需要 `push:broadcast`，定时发送还需要 `push:schedule`。
 
 **认证方式**：
 ```bash
-# Header 认证（推荐）
--H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# 客户服务端：App Secret
+-H "Authorization: Bearer dp_as_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
-# Query 参数认证
-?api_key=dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# Web 控制台：JWT
+-H "Authorization: Bearer <jwt_token>"
 ```
 
 ## 📨 发送推送
@@ -150,7 +150,7 @@ Android 平台支持多种推送通道，系统会根据设备品牌智能选择
 #### 基础广播推送
 ```bash
 curl -X POST "https://doopush.com/api/v1/apps/123/push" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "新功能上线",
@@ -172,7 +172,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push" \
 ```bash
 # 向所有华为设备推送
 curl -X POST "https://doopush.com/api/v1/apps/123/push" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "华为用户专享优惠",
@@ -194,7 +194,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push" \
 
 # 向所有荣耀设备推送
 curl -X POST "https://doopush.com/api/v1/apps/123/push" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "荣耀用户专享通知",
@@ -217,7 +217,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push" \
 
 # 向所有VIVO设备推送（带厂商参数）
 curl -X POST "https://doopush.com/api/v1/apps/123/push" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "VIVO用户专属通知",
@@ -241,7 +241,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push" \
 
 # 向所有魅族设备推送（带厂商参数）
 curl -X POST "https://doopush.com/api/v1/apps/123/push" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "魅族用户专属通知",
@@ -267,7 +267,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push" \
 
 # 向指定设备组推送（自动选择推送通道）
 curl -X POST "https://doopush.com/api/v1/apps/123/push" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "VIP用户消息",
@@ -290,7 +290,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push" \
 
 # 向特定设备列表推送
 curl -X POST "https://doopush.com/api/v1/apps/123/push" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "订单状态更新",
@@ -382,7 +382,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push" \
 
 ```bash
 curl -X POST "https://doopush.com/api/v1/apps/123/push/single" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "订单状态更新",
@@ -469,7 +469,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push/single" \
 
 ```bash
 curl -X POST "https://doopush.com/api/v1/apps/123/push/batch" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "会员专享活动",
@@ -569,7 +569,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push/batch" \
 
 ```bash
 curl -X POST "https://doopush.com/api/v1/apps/123/push/broadcast" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "Authorization: Bearer dp_as_x" \
      -H "Content-Type: application/json" \
      -d '{
        "title": "重要系统更新",
@@ -629,7 +629,7 @@ curl -X POST "https://doopush.com/api/v1/apps/123/push/broadcast" \
 
 ```bash
 curl -X GET "https://doopush.com/api/v1/apps/123/push/logs?page=1&page_size=10&status=sent" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     -H "Authorization: Bearer dp_as_x"
 ```
 
 ### 响应格式
@@ -693,7 +693,7 @@ curl -X GET "https://doopush.com/api/v1/apps/123/push/logs?page=1&page_size=10&s
 
 ```bash
 curl -X GET "https://doopush.com/api/v1/apps/123/push/statistics?days=30" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+     -H "Authorization: Bearer dp_as_x"
 ```
 
 ### 响应格式
@@ -771,7 +771,7 @@ POST /api/v1/apps/callback?vendor={huawei|honor|oppo|vivo|xiaomi|meizu}
 
 ### 认证
 
-回执接口由厂商推送平台主动调用，**无需 API Key**。请求体格式由各厂商决定，DooPush 按厂商解析。
+回执接口由厂商推送平台主动调用，**无需 App Secret**。请求体格式由各厂商决定，DooPush 按厂商解析。
 
 ### 响应
 
@@ -820,7 +820,7 @@ POST /api/v1/apps/callback?vendor={huawei|honor|oppo|vivo|xiaomi|meizu}
 | 状态码 | 错误码 | 描述 | 解决方案 |
 |--------|--------|------|----------|
 | 400 | 400 | 请求参数错误 | 检查请求参数格式和内容 |
-| 401 | 401 | 未认证或API密钥无效 | 检查API Key是否正确和有效 |
+| 401 | 401 | 未认证或App Secret无效 | 检查 App Secret 是否正确、有效且属于该应用 |
 | 403 | 403 | 无权限 | 确认当前用户对该应用有访问权限 |
 | 422 | 422 | 参数验证失败 | 检查必填参数和格式要求 |
 
@@ -830,7 +830,7 @@ POST /api/v1/apps/callback?vendor={huawei|honor|oppo|vivo|xiaomi|meizu}
 ```json
 {
   "code": 401,
-  "message": "未认证或API密钥无效",
+  "message": "未认证或App Secret无效",
   "data": null
 }
 ```
