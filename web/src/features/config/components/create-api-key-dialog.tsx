@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, Key, Copy, CheckCircle, AlertCircle } from 'lucide-react'
+import { Loader2, Key } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,6 +26,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { AppService } from '@/services/app-service'
 import { requireApp } from '@/utils/app-utils'
 import { toast } from 'sonner'
+import { CreatedCredentialDialog } from './created-credential-dialog'
 import type { App } from '@/types/api'
 
 // 表单验证规则
@@ -48,7 +49,6 @@ export function CreateApiKeyDialog({ open, onOpenChange, onSuccess, app }: Creat
   const [loading, setLoading] = useState(false)
   const [createdKey, setCreatedKey] = useState<{ api_key: string; warning?: string } | null>(null)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   const form = useForm<CreateApiKeyFormData>({
     resolver: zodResolver(createApiKeySchema),
@@ -91,20 +91,9 @@ export function CreateApiKeyDialog({ open, onOpenChange, onSuccess, app }: Creat
     }
   }
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (error) {
-      console.error('复制失败:', error)
-    }
-  }
-
   const handleSuccessClose = () => {
     setShowSuccessDialog(false)
     setCreatedKey(null)
-    setCopied(false)
   }
 
   return (
@@ -118,7 +107,7 @@ export function CreateApiKeyDialog({ open, onOpenChange, onSuccess, app }: Creat
               创建API密钥
             </DialogTitle>
             <DialogDescription>
-              创建新的API密钥用于SDK认证。密钥创建后只能查看一次，请妥善保存。
+              创建并保留 API 密钥。完整密钥只展示一次，请妥善保存。
             </DialogDescription>
           </DialogHeader>
 
@@ -157,79 +146,15 @@ export function CreateApiKeyDialog({ open, onOpenChange, onSuccess, app }: Creat
         </DialogContent>
       </Dialog>
 
-      {/* 创建成功对话框 - 禁止点击背景关闭 */}
-      <Dialog open={showSuccessDialog} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-[550px] [&>button]:hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="h-5 w-5" />
-              API密钥创建成功
-            </DialogTitle>
-            <DialogDescription>
-              请立即复制并保存您的API密钥，此密钥不会再次显示。
-            </DialogDescription>
-          </DialogHeader>
-
-          {createdKey && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  您的API密钥：
-                </label>
-                <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg border">
-                  <code className="flex-1 text-sm font-mono text-foreground break-all">
-                    {createdKey.api_key}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant={copied ? "default" : "outline"}
-                    onClick={() => copyToClipboard(createdKey.api_key)}
-                    className={copied ? "bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600" : ""}
-                  >
-                    {copied ? (
-                      <>
-                        <CheckCircle className="mr-1 h-4 w-4" />
-                        已复制
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="mr-1 h-4 w-4" />
-                        复制
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {createdKey.warning && (
-                <div className="flex items-start space-x-2 p-3 bg-orange-50 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-800 rounded-lg">
-                  <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 flex-shrink-0" />
-                  <div className="text-sm text-orange-800 dark:text-orange-200">
-                    {createdKey.warning}
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                <div className="text-sm text-blue-800 dark:text-blue-200">
-                  <strong>重要提示：</strong>
-                  <ul className="mt-1 list-disc list-inside space-y-1">
-                    <li>请将此密钥保存在安全的地方</li>
-                    <li>不要将密钥提交到代码库中</li>
-                    <li>如果密钥泄露，请立即删除并重新创建</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button onClick={handleSuccessClose} className="w-full">
-              我已保存密钥
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreatedCredentialDialog
+        open={showSuccessDialog}
+        title="API 密钥创建成功"
+        description="请立即复制并保存您的 API 密钥，此密钥不会再次显示。"
+        credentialLabel="您的 API 密钥"
+        credential={createdKey?.api_key ?? null}
+        warning={createdKey?.warning}
+        onClose={handleSuccessClose}
+      />
     </>
   )
 }

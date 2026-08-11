@@ -46,7 +46,7 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
     // 配置 DooPushSDK
     DooPushManager.shared.configure(
         appId: "your_app_id",
-        apiKey: "your_api_key",
+        appKey: "dp_ak_xxx",
         baseURL: "http://localhost:5001/api/v1" // 可选，用于本地开发
     )
     
@@ -157,8 +157,9 @@ let currentBadge = DooPushManager.shared.getCurrentBadgeNumber()
 ### DooPushManager
 
 #### 核心方法
-- `configure(appId:apiKey:baseURL:)` - 配置 SDK
+- `configure(appId:appKey:baseURL:)` - 配置 SDK
 - `registerForPushNotifications(completion:)` - 注册推送通知
+- `acquirePushToken(completion:)` - 获取 APNs token，但不向 DooPush 注册设备
 - `handleNotification(_:) -> Bool` - 处理推送通知，返回是否处理成功
 - `updateDeviceInfo()` - 更新设备信息
 
@@ -207,6 +208,9 @@ swift test
 pod spec lint DooPushSDK.podspec --verbose
 ```
 ## 更新日志
+
+### v1.4.0
+- **Feat**：新增 `acquirePushToken(completion:)`，允许客户端只获取 APNs token，再交由业务服务端完成 DooPush 设备注册；该操作不会改变已有 SDK 配置和网络功能。
 
 ### v1.3.0
 - **Feat**：注册设备时上报 APNs 推送环境（development / production），用于平台展示、筛选和按正确 APNs endpoint 发送，减少开发 token 与生产 token 混用导致的发送失败。

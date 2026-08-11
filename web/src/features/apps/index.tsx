@@ -186,7 +186,7 @@ export function Apps() {
           <div className='flex flex-col gap-1'>
             <h1 className='text-2xl font-bold tracking-tight'>应用管理</h1>
             <p className='text-muted-foreground'>
-              管理您的推送应用，配置推送服务和API密钥
+              管理您的推送应用、客户端 App Key 和服务端 App Secret
             </p>
           </div>
           <Button onClick={() => setCreateDialogOpen(true)}>
@@ -303,7 +303,7 @@ export function Apps() {
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleManageAPIKeys(app)}>
                             <Key className="mr-2 h-4 w-4" />
-                            API密钥
+                            应用凭证
                           </DropdownMenuItem>
                           {app.role === 'owner' && (
                             <>

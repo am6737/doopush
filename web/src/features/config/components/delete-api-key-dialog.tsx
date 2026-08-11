@@ -13,27 +13,29 @@ import { useAuthStore } from '@/stores/auth-store'
 import { AppService } from '@/services/app-service'
 import { requireApp } from '@/utils/app-utils'
 import { toast } from 'sonner'
-import type { AppAPIKey } from '@/types/api'
+import type { App, AppAPIKey } from '@/types/api'
 
 interface DeleteApiKeyDialogProps {
   apiKey: AppAPIKey | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  app?: App | null
 }
 
-export function DeleteApiKeyDialog({ apiKey, open, onOpenChange, onSuccess }: DeleteApiKeyDialogProps) {
+export function DeleteApiKeyDialog({ apiKey, open, onOpenChange, onSuccess, app }: DeleteApiKeyDialogProps) {
   const { currentApp } = useAuthStore()
+  const targetApp = app ?? currentApp
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
-    if (!requireApp(currentApp) || !apiKey) {
+    if (!requireApp(targetApp) || !apiKey) {
       return
     }
 
     try {
       setLoading(true)
-      await AppService.deleteAPIKey(currentApp.id, apiKey.id)
+      await AppService.deleteAPIKey(targetApp.id, apiKey.id)
       toast.success('删除API密钥成功')
       onSuccess()
       onOpenChange(false)
@@ -100,7 +102,7 @@ export function DeleteApiKeyDialog({ apiKey, open, onOpenChange, onSuccess }: De
           <div className="flex items-start space-x-2 p-3 bg-orange-50 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-800 rounded-lg">
             <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 flex-shrink-0" />
             <div className="text-sm text-orange-800 dark:text-orange-200">
-              删除API密钥后，使用此密钥的所有SDK连接将立即失效，请确保您已经更换了新的API密钥。
+              删除后无法恢复，完整密钥也不能再次查看。
             </div>
           </div>
         </div>

@@ -8,25 +8,27 @@ import (
 
 // Device 设备模型
 type Device struct {
-	ID            uint           `gorm:"primarykey" json:"id" example:"1"`
-	AppID         uint           `gorm:"not null;index;comment:应用ID;uniqueIndex:idx_device_app_token" json:"app_id" binding:"required"`
-	Token         string         `gorm:"size:500;not null;comment:设备推送Token" json:"token" example:"device_token_here" binding:"required"`
-	TokenHash     string         `gorm:"size:64;index;not null;comment:Token哈希值;uniqueIndex:idx_device_app_token" json:"-"`
-	Platform      string         `gorm:"size:20;not null;comment:设备平台" json:"platform" example:"ios" binding:"required,oneof=ios android"`
-	Channel       string         `gorm:"size:20;not null;comment:推送通道" json:"channel" example:"apns" binding:"required"`
-	PushEnv       string         `gorm:"column:push_environment;size:20;not null;default:production;index;comment:推送环境 development/production" json:"push_environment" example:"production"`
-	Brand         string         `gorm:"size:50;comment:设备品牌" json:"brand" example:"Apple"`
-	Model         string         `gorm:"size:100;comment:设备型号" json:"model" example:"iPhone 14"`
-	SystemVer     string         `gorm:"size:50;comment:系统版本" json:"system_version" example:"17.0"`
-	AppVersion    string         `gorm:"size:50;comment:应用版本" json:"app_version" example:"1.0.0"`
-	UserAgent     string         `gorm:"size:500;comment:用户代理" json:"user_agent"`
-	Status        int            `gorm:"default:1;comment:设备状态 1=正常 0=禁用" json:"status" example:"1"`
-	IsOnline      bool           `gorm:"default:false;index;comment:实时在线状态" json:"is_online"`
-	LastSeen      *time.Time     `gorm:"comment:最后活跃时间" json:"last_seen"`
-	LastHeartbeat *time.Time     `gorm:"comment:最后心跳时间" json:"last_heartbeat"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-	DeletedAt     gorm.DeletedAt `gorm:"index" json:"-"`
+	ID                uint           `gorm:"primarykey" json:"id" example:"1"`
+	AppID             uint           `gorm:"not null;index;comment:应用ID;uniqueIndex:idx_device_app_token" json:"app_id" binding:"required"`
+	Token             string         `gorm:"size:500;not null;comment:设备推送Token" json:"token" example:"device_token_here" binding:"required"`
+	TokenHash         string         `gorm:"size:64;index;not null;comment:Token哈希值;uniqueIndex:idx_device_app_token" json:"-"`
+	Platform          string         `gorm:"size:20;not null;comment:设备平台" json:"platform" example:"ios" binding:"required,oneof=ios android"`
+	Channel           string         `gorm:"size:20;not null;comment:推送通道" json:"channel" example:"apns" binding:"required"`
+	PushEnv           string         `gorm:"column:push_environment;size:20;not null;default:production;index;comment:推送环境 development/production" json:"push_environment" example:"production"`
+	Brand             string         `gorm:"size:50;comment:设备品牌" json:"brand" example:"Apple"`
+	Model             string         `gorm:"size:100;comment:设备型号" json:"model" example:"iPhone 14"`
+	SystemVer         string         `gorm:"size:50;comment:系统版本" json:"system_version" example:"17.0"`
+	AppVersion        string         `gorm:"size:50;comment:应用版本" json:"app_version" example:"1.0.0"`
+	UserAgent         string         `gorm:"size:500;comment:用户代理" json:"user_agent"`
+	Status            int            `gorm:"default:1;comment:设备状态 1=正常 0=禁用" json:"status" example:"1"`
+	IsOnline          bool           `gorm:"default:false;index;comment:实时在线状态" json:"is_online"`
+	LastSeen          *time.Time     `gorm:"comment:最后活跃时间" json:"last_seen"`
+	LastHeartbeat     *time.Time     `gorm:"comment:最后心跳时间" json:"last_heartbeat"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	DeletedAt         gorm.DeletedAt `gorm:"index" json:"-"`
+	InstallationID    string         `gorm:"-" json:"installation_id,omitempty"`
+	InstallationToken string         `gorm:"-" json:"installation_token,omitempty"`
 
 	// 关联关系
 	App       App              `gorm:"foreignKey:AppID" json:"app,omitempty"`

@@ -19,8 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class DooPushWebSocketConnection(
     private val baseUrl: String,
     private val appId: String,
-    private val appKey: String,
-    private val token: String,
+    private val installationToken: String,
     private val listener: Listener,
 ) {
     interface Listener {
@@ -81,8 +80,9 @@ class DooPushWebSocketConnection(
 
     private fun doConnect() {
         val wsUrl = wsUrlFromBase(baseUrl)
+        val query = "appid=$appId&installation_token=${java.net.URLEncoder.encode(installationToken, "UTF-8")}"
         val req = Request.Builder()
-            .url("$wsUrl?appid=$appId&appkey=$appKey&token=$token")
+            .url("$wsUrl?$query")
             .build()
         ws = client.newWebSocket(req, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {

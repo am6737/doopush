@@ -25,7 +25,7 @@ final class DooPushManagementModeTests: XCTestCase {
     }
 
     func testRegisterWithTokenInvokesNetworking() {
-        DooPushManager.shared.configure(appId: "test_app_id", apiKey: "test_api_key")
+        DooPushManager.shared.configure(appId: "test_app_id", appKey: "test_api_key")
 
         let exp = expectation(description: "completion called")
         DooPushManager.shared.registerDevice(withToken: "deadbeef", vendor: "apns") { deviceId, error in

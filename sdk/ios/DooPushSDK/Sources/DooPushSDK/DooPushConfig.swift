@@ -5,8 +5,8 @@ import Foundation
     /// 应用ID
     @objc public let appId: String
     
-    /// API密钥
-    @objc public let apiKey: String
+    /// App Key，仅用于注册当前安装实例
+    @objc public let appKey: String
     
     /// 服务器基础URL
     @objc public let baseURL: String
@@ -17,11 +17,11 @@ import Foundation
     /// 初始化配置
     /// - Parameters:
     ///   - appId: 应用ID
-    ///   - apiKey: API密钥
+    ///   - appKey: App Key
     ///   - baseURL: 服务器基础URL
-    @objc public init(appId: String, apiKey: String, baseURL: String) {
+    @objc public init(appId: String, appKey: String, baseURL: String) {
         self.appId = appId
-        self.apiKey = apiKey
+        self.appKey = appKey
         self.baseURL = baseURL
         
         // 根据URL判断环境类型
@@ -40,7 +40,7 @@ import Foundation
     
     enum CodingKeys: String, CodingKey {
         case appId = "app_id"
-        case apiKey = "api_key"
+        case appKey = "app_key"
         case baseURL = "base_url"
         case environment = "environment"
     }
@@ -49,7 +49,7 @@ import Foundation
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
         self.appId = try container.decode(String.self, forKey: .appId)
-        self.apiKey = try container.decode(String.self, forKey: .apiKey)
+        self.appKey = try container.decode(String.self, forKey: .appKey)
         self.baseURL = try container.decode(String.self, forKey: .baseURL)
         
         // 环境类型从baseURL推断
@@ -68,7 +68,7 @@ import Foundation
         var container = encoder.container(keyedBy: CodingKeys.self)
         
         try container.encode(appId, forKey: .appId)
-        try container.encode(apiKey, forKey: .apiKey)
+        try container.encode(appKey, forKey: .appKey)
         try container.encode(baseURL, forKey: .baseURL)
         try container.encode(environment.rawValue, forKey: .environment)
     }
@@ -97,7 +97,8 @@ import Foundation
     
     /// 验证配置是否有效
     public var isValid: Bool {
-        return !appId.isEmpty && !apiKey.isEmpty && !baseURL.isEmpty
+        let appKeyRange = appKey.range(of: "^dp_ak_[A-Za-z0-9]{32}$", options: .regularExpression)
+        return !appId.isEmpty && appKeyRange != nil && !baseURL.isEmpty
     }
     
     // MARK: - 调试信息

@@ -13,29 +13,28 @@ import (
 	"gorm.io/gorm"
 )
 
-// HandshakeParams 握手 query 三参
+// HandshakeParams 是 Installation Token 握手解析结果。
 type HandshakeParams struct {
-	AppID  uint
-	AppKey string
-	Token  string
+	AppID             uint
+	Token             string
+	InstallationToken string
 }
 
 var errMissingParam = errors.New("missing required query param")
 
-// parseHandshakeParams 从请求 query 中解析三参
+// parseHandshakeParams 从请求 query 中解析应用与安装凭证。
 func parseHandshakeParams(r *http.Request) (*HandshakeParams, error) {
 	q := r.URL.Query()
 	appIDStr := q.Get("appid")
-	appKey := q.Get("appkey")
-	token := q.Get("token")
-	if appIDStr == "" || appKey == "" || token == "" {
+	installationToken := q.Get("installation_token")
+	if appIDStr == "" || installationToken == "" {
 		return nil, errMissingParam
 	}
 	id, err := strconv.ParseUint(appIDStr, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid appid: %w", err)
 	}
-	return &HandshakeParams{AppID: uint(id), AppKey: appKey, Token: token}, nil
+	return &HandshakeParams{AppID: uint(id), InstallationToken: installationToken}, nil
 }
 
 // authError 携带 HTTP status hint 的鉴权错误
@@ -53,21 +52,18 @@ func authenticate(db *gorm.DB, p *HandshakeParams) (deviceID uint, err error) {
 	if err := db.Where("id = ? AND status = 1", p.AppID).First(&app).Error; err != nil {
 		return 0, &authError{status: http.StatusUnauthorized, msg: "app not found"}
 	}
-	// 2. AppKey 哈希匹配
-	keyHash := utils.HashString(p.AppKey)
-	var apiKey models.AppAPIKey
-	if err := db.Where("app_id = ? AND key_hash = ? AND status = 1", p.AppID, keyHash).First(&apiKey).Error; err != nil {
-		return 0, &authError{status: http.StatusUnauthorized, msg: "invalid appkey"}
+	var credential models.InstallationCredential
+	if err := db.Where("app_id = ? AND token_hash = ? AND status = 1", p.AppID, utils.HashCredential(p.InstallationToken)).First(&credential).Error; err != nil {
+		return 0, &authError{status: http.StatusUnauthorized, msg: "invalid installation token"}
 	}
-	if apiKey.ExpiresAt != nil && apiKey.ExpiresAt.Before(time.Now()) {
-		return 0, &authError{status: http.StatusUnauthorized, msg: "appkey expired"}
+	if credential.ExpiresAt != nil && credential.ExpiresAt.Before(time.Now()) {
+		return 0, &authError{status: http.StatusUnauthorized, msg: "installation token expired"}
 	}
-	// 3. 设备 token 哈希匹配
-	tokenHash := utils.HashString(p.Token)
 	var device models.Device
-	if err := db.Where("app_id = ? AND token_hash = ? AND status = 1", p.AppID, tokenHash).First(&device).Error; err != nil {
-		return 0, &authError{status: http.StatusForbidden, msg: "invalid token"}
+	if err := db.Where("id = ? AND app_id = ? AND status = 1", credential.DeviceID, p.AppID).First(&device).Error; err != nil {
+		return 0, &authError{status: http.StatusForbidden, msg: "installation not found"}
 	}
+	p.Token = device.Token
 	return device.ID, nil
 }
 

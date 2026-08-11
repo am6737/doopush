@@ -8,6 +8,7 @@ import (
 	"github.com/doopush/doopush/api/internal/controllers"
 	"github.com/doopush/doopush/api/internal/database"
 	"github.com/doopush/doopush/api/internal/middleware"
+	"github.com/doopush/doopush/api/internal/models"
 	"github.com/doopush/doopush/api/internal/redisclient"
 	"github.com/doopush/doopush/api/internal/services"
 	"github.com/doopush/doopush/api/pkg/utils"
@@ -143,7 +144,13 @@ func startServer() {
 			authenticated.POST("/apps/:appId/invitations", middleware.RequireAppRole("owner"), invitationCtrl.CreateInvitation)
 			authenticated.DELETE("/apps/:appId/invitations/:invitationId", middleware.RequireAppRole("owner"), invitationCtrl.CancelInvitation)
 
-			// API密钥管理
+			// App Secret 管理（客户端 App Key 随应用自动创建，不在此处管理）
+			authenticated.GET("/apps/:appId/app-secrets", middleware.RequireAppRole("owner"), appCtrl.GetAppSecrets)
+			authenticated.POST("/apps/:appId/app-secrets", middleware.RequireAppRole("owner"), appCtrl.CreateAppSecret)
+			authenticated.PATCH("/apps/:appId/app-secrets/:secretId", middleware.RequireAppRole("owner"), appCtrl.UpdateAppSecretScopes)
+			authenticated.DELETE("/apps/:appId/app-secrets/:secretId", middleware.RequireAppRole("owner"), appCtrl.RevokeAppSecret)
+
+			// 保留原有 API Key 管理能力，但不接入 SDK 或服务端 API 鉴权。
 			authenticated.GET("/apps/:appId/api-keys", middleware.RequireAppRole("developer"), appCtrl.GetAppAPIKeys)
 			authenticated.POST("/apps/:appId/api-keys", middleware.RequireAppRole("developer"), appCtrl.CreateAPIKey)
 			authenticated.DELETE("/apps/:appId/api-keys/:keyId", middleware.RequireAppRole("developer"), appCtrl.DeleteAPIKey)
@@ -228,24 +235,29 @@ func startServer() {
 			receipt.POST("", callbackCtrl.ReceiveGenericCallback) // 通用回执接口
 		}
 
-		// API Key认证的路由 (供客户端SDK使用)
-		apiKeyRoutes := api.Group("")
-		apiKeyRoutes.Use(middleware.APIKeyAuth())
+		// App Key 只允许客户端首次注册。
+		appKeyRoutes := api.Group("")
+		appKeyRoutes.Use(middleware.AppKeyAuth())
 		{
-			apiKeyRoutes.POST("/apps/:appId/devices", deviceCtrl.RegisterDevice)
-			apiKeyRoutes.POST("/apps/:appId/push/statistics/report", pushCtrl.ReportPushStatistics)
+			appKeyRoutes.POST("/apps/:appId/devices", deviceCtrl.RegisterDevice)
 		}
 
-		// 双重认证的路由 (支持JWT和API Key认证)
-		dualAuthRoutes := api.Group("")
-		dualAuthRoutes.Use(middleware.DualAuth())
-		dualAuthRoutes.Use(middleware.AuditLogger())
+		installationRoutes := api.Group("")
+		installationRoutes.Use(middleware.InstallationAuth())
 		{
-			// 推送管理 - 发送类接口（支持JWT和API Key双重认证）
-			dualAuthRoutes.POST("/apps/:appId/push", pushCtrl.SendPush)
-			dualAuthRoutes.POST("/apps/:appId/push/single", pushCtrl.SendSingle)
-			dualAuthRoutes.POST("/apps/:appId/push/batch", pushCtrl.SendBatch)
-			dualAuthRoutes.POST("/apps/:appId/push/broadcast", pushCtrl.SendBroadcast)
+			installationRoutes.POST("/apps/:appId/push/statistics/report", pushCtrl.ReportPushStatistics)
+		}
+
+		// 服务端业务接口支持控制台 JWT 或带 Scope 的 App Secret。
+		serverRoutes := api.Group("")
+		serverRoutes.Use(middleware.JWTOrAppSecretAuth())
+		serverRoutes.Use(middleware.AuditLogger())
+		serverRoutes.Use(middleware.RequireAppSecretScopes(models.ScopePushSend))
+		{
+			serverRoutes.POST("/apps/:appId/push", pushCtrl.SendPush)
+			serverRoutes.POST("/apps/:appId/push/single", pushCtrl.SendSingle)
+			serverRoutes.POST("/apps/:appId/push/batch", pushCtrl.SendBatch)
+			serverRoutes.POST("/apps/:appId/push/broadcast", middleware.RequireAppSecretScopes(models.ScopePushBroadcast), pushCtrl.SendBroadcast)
 		}
 	}
 

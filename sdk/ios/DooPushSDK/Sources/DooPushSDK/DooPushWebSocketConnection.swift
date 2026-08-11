@@ -11,8 +11,7 @@ public final class DooPushWebSocketConnection: NSObject {
 
     private let baseUrl: String
     private let appId: String
-    private let appKey: String
-    private let token: String
+    private let installationToken: String
     public weak var listener: Listener?
 
     private var session: URLSession!
@@ -34,11 +33,10 @@ public final class DooPushWebSocketConnection: NSObject {
     private var _reconnectPending = false  // 单飞：是否已有待执行的重连
     private var openSinceMs: TimeInterval = 0  // 用于稳态退避重置
 
-    public init(baseUrl: String, appId: String, appKey: String, token: String) {
+    public init(baseUrl: String, appId: String, installationToken: String) {
         self.baseUrl = baseUrl
         self.appId = appId
-        self.appKey = appKey
-        self.token = token
+        self.installationToken = installationToken
         super.init()
         // iOS 的 URLSessionWebSocketTask 在 .default 会话/连接复用下，对部分服务端（如 Cloudflare 前置）
         // 易出现 -1005「network connection was lost」，而同网络下 OkHttp/Node 均稳定。
@@ -113,8 +111,7 @@ public final class DooPushWebSocketConnection: NSObject {
         out.path = "/ws"
         out.queryItems = [
             URLQueryItem(name: "appid", value: appId),
-            URLQueryItem(name: "appkey", value: appKey),
-            URLQueryItem(name: "token", value: token),
+            URLQueryItem(name: "installation_token", value: installationToken),
         ]
         return out.url
     }

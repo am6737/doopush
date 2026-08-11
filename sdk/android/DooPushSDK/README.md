@@ -103,7 +103,7 @@ class MyApplication : Application() {
         DooPushManager.getInstance().configure(
             context = this,
             appId = "your_app_id",
-            apiKey = "your_api_key", 
+            appKey = "dp_ak_xxx",
             baseUrl = "https://your-server.com/api/v1" // 可选
         )
     }
@@ -230,9 +230,10 @@ plugins {
 ### DooPushManager
 
 #### 核心方法
-- `configure(context, appId, apiKey, baseUrl?)` - 配置 SDK
+- `configure(context, appId, appKey, baseUrl?)` - 配置 SDK
 - `setCallback(callback)` - 设置回调监听器
 - `registerForPushNotifications(callback?)` - 走 SDK 内部 token 获取流程注册
+- `acquirePushToken(callback)` - 获取最佳 FCM/HMS/OEM token，但不向 DooPush 注册设备
 - `registerDevice(token, vendor, callback)` - 用调用方已有 token 直接注册（共存模式，v1.1.0+）
 
 #### 注册信息读取（v1.2.0+）
@@ -307,6 +308,9 @@ A: SDK 提供了详细的日志输出，使用 `adb logcat -s DooPushManager` �
 如有问题请提交 Issue 或联系技术支持团队。
 
 ## 更新日志
+
+### v1.3.0
+- **Feat**：新增 `acquirePushToken(callback)`，允许客户端只获取 FCM/HMS/OEM token，再交由业务服务端完成 DooPush 设备注册；该操作不会改变已有 SDK 配置和网络功能。
 
 ### v1.2.2
 - **Fix (OPPO)**：OPPO/HeyTap 厂商注册失败时只抛通用超时错误，无法定位根因；`onError` 改为透出 MCS 返回的真实错误信息（`getFullDescription()`），便于排查静默失败。

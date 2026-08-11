@@ -30,12 +30,14 @@ func (s *AuditService) LogAction(userID uint, appID *uint, action, resource, res
 	}
 
 	auditLog := &models.AuditLog{
-		UserID:    userID,
-		Action:    action,
-		Resource:  resource,
-		Details:   newDataJSON, // 使用Details字段存储操作详情
-		IPAddress: ipAddress,
-		UserAgent: userAgent,
+		UserID:        uintPointer(userID),
+		PrincipalType: "user",
+		PrincipalID:   userID,
+		Action:        action,
+		Resource:      resource,
+		Details:       newDataJSON, // 使用Details字段存储操作详情
+		IPAddress:     ipAddress,
+		UserAgent:     userAgent,
 	}
 
 	// 如果有appID，则设置
@@ -44,8 +46,10 @@ func (s *AuditService) LogAction(userID uint, appID *uint, action, resource, res
 	}
 
 	// 获取用户名并设置到冗余字段
-	if userName := s.getUserName(userID); userName != "" {
-		auditLog.UserName = userName
+	if userID > 0 {
+		if userName := s.getUserName(userID); userName != "" {
+			auditLog.UserName = userName
+		}
 	}
 
 	if err := database.DB.Create(auditLog).Error; err != nil {
@@ -78,14 +82,16 @@ func (s *AuditService) LogActionWithBeforeAfter(userID uint, appID *uint, action
 	}
 
 	auditLog := &models.AuditLog{
-		UserID:     userID,
-		Action:     action,
-		Resource:   resource,
-		Details:    detailsJSON,
-		BeforeData: beforeDataJSON,
-		AfterData:  afterDataJSON,
-		IPAddress:  ipAddress,
-		UserAgent:  userAgent,
+		UserID:        uintPointer(userID),
+		PrincipalType: "user",
+		PrincipalID:   userID,
+		Action:        action,
+		Resource:      resource,
+		Details:       detailsJSON,
+		BeforeData:    beforeDataJSON,
+		AfterData:     afterDataJSON,
+		IPAddress:     ipAddress,
+		UserAgent:     userAgent,
 	}
 
 	// 如果有appID，则设置
@@ -101,8 +107,10 @@ func (s *AuditService) LogActionWithBeforeAfter(userID uint, appID *uint, action
 	}
 
 	// 获取用户名并设置到冗余字段
-	if userName := s.getUserName(userID); userName != "" {
-		auditLog.UserName = userName
+	if userID > 0 {
+		if userName := s.getUserName(userID); userName != "" {
+			auditLog.UserName = userName
+		}
 	}
 
 	if err := database.DB.Create(auditLog).Error; err != nil {
@@ -113,7 +121,7 @@ func (s *AuditService) LogActionWithBeforeAfter(userID uint, appID *uint, action
 }
 
 // LogActionWithContext 记录操作日志 (用于中间件)
-func (s *AuditService) LogActionWithContext(userID uint, appID *uint, action, resource, resourceID, ipAddress, userAgent string, beforeData, afterData interface{}) error {
+func (s *AuditService) LogActionWithContext(userID uint, principalType string, principalID uint, appSecretID *uint, appID *uint, action, resource, resourceID, ipAddress, userAgent string, beforeData, afterData interface{}) error {
 	var beforeDataJSON, afterDataJSON *string
 	var detailsJSON string
 
@@ -135,14 +143,17 @@ func (s *AuditService) LogActionWithContext(userID uint, appID *uint, action, re
 	}
 
 	auditLog := &models.AuditLog{
-		UserID:     userID,
-		Action:     action,
-		Resource:   resource,
-		Details:    detailsJSON,
-		BeforeData: beforeDataJSON,
-		AfterData:  afterDataJSON,
-		IPAddress:  ipAddress,
-		UserAgent:  userAgent,
+		UserID:        uintPointer(userID),
+		PrincipalType: principalType,
+		PrincipalID:   principalID,
+		AppSecretID:   appSecretID,
+		Action:        action,
+		Resource:      resource,
+		Details:       detailsJSON,
+		BeforeData:    beforeDataJSON,
+		AfterData:     afterDataJSON,
+		IPAddress:     ipAddress,
+		UserAgent:     userAgent,
 	}
 
 	// 如果有resourceID，则转换并设置
@@ -158,8 +169,10 @@ func (s *AuditService) LogActionWithContext(userID uint, appID *uint, action, re
 	}
 
 	// 获取用户名并设置到冗余字段
-	if userName := s.getUserName(userID); userName != "" {
-		auditLog.UserName = userName
+	if userID > 0 {
+		if userName := s.getUserName(userID); userName != "" {
+			auditLog.UserName = userName
+		}
 	}
 
 	if err := database.DB.Create(auditLog).Error; err != nil {
@@ -167,6 +180,13 @@ func (s *AuditService) LogActionWithContext(userID uint, appID *uint, action, re
 	}
 
 	return nil
+}
+
+func uintPointer(value uint) *uint {
+	if value == 0 {
+		return nil
+	}
+	return &value
 }
 
 // getUserName 获取用户名 (辅助方法)

@@ -4,17 +4,19 @@ DooPush 提供完整的 REST API 接口，支持通过程序化方式实现推�
 
 ## 🔑 认证方式
 
-DooPush API 提供两种认证方式：
+DooPush API 按调用身份提供三种认证方式：
 
-- **API Key**（`X-API-Key` 头或 `?api_key=`）：面向第三方业务调用，授予的能力包括发送推送（单推 / 批量 / 广播）、设备注册、客户端送达 / 点击事件上报。
-- **JWT Token**（`Authorization: Bearer <token>`）：面向 Web 控制台与管理后台脚本，覆盖应用 / 配置 / 设备 / 推送日志 / 统计 / 审计等管理类查询。
+- **App Key**（`X-App-Key`）：客户端 SDK 注册安装实例，可以包含在应用中。
+- **Installation Token**（`Authorization: Bearer`）：SDK 内部访问当前安装实例的 WebSocket 与回执接口。
+- **App Secret**（`Authorization: Bearer`）：客户服务端根据 Scope 调用推送发送接口。
+- **JWT Token**（`Authorization: Bearer`）：Web 控制台用户操作。
 
-API Key 不再分级，凭一把 Key 即可访问其授权的全部接口；管理类只读接口需登录获取 JWT。
+App Key 永远不能发送推送。App Secret 与具体应用绑定，并使用最小权限 Scope。
 
 ## 📚 API 文档目录
 
 ### 🔐 认证相关
-- [**API 认证**](./authentication.md) - API Key 获取和使用方法
+- [**API 认证**](./authentication.md) - App Key、Installation Token 和 App Secret 的使用方法
 
 ### 📨 推送相关
 - [**推送接口**](./push-apis.md) - 单推、批量、广播推送 API
@@ -28,13 +30,13 @@ API Key 不再分级，凭一把 Key 即可访问其授权的全部接口；管�
 ## 🌐 API 基础信息
 
 - **Base URL**: `https://doopush.com/api/v1`
-- **认证方式**: API Key（Header 或 Query 参数） / JWT Token（Header）
+- **认证方式**: App Key / Installation Token / App Secret / JWT Token
 - **数据格式**: JSON
 - **字符编码**: UTF-8
 
 ## 🛠 快速开始
 
-1. 首先阅读 [API 认证](./authentication.md) 了解如何获取 API Key
+1. 首先阅读 [API 认证](./authentication.md) 了解 App Key 与 App Secret 的边界
 2. 查看 [推送接口](./push-apis.md) 了解如何发送推送
 3. 参考具体接口文档中的代码示例
 

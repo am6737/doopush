@@ -20,9 +20,6 @@ import UserNotifications
     /// 配置信息
     private var config: DooPushConfig?
 
-    /// 仅获取原生推送 token，不访问 DooPush 服务端。
-    private var tokenAcquisitionOnly = false
-
     /// 当前通知管理模式（默认 .active）
     public private(set) var notificationManagementMode: DooPushNotificationManagementMode = .active
 
@@ -62,22 +59,21 @@ import UserNotifications
     /// 配置 DooPush SDK
     /// - Parameters:
     ///   - appId: 应用ID
-    ///   - apiKey: API密钥
+    ///   - appKey: App Key
     ///   - baseURL: 服务器基础URL，默认为 https://doopush.com/api/v1
     ///
     /// 注意：当 `baseURL` 为空字符串时，将自动回退到默认值，便于 Objective‑C 侧传入空字符串。
     @objc public func configure(
         appId: String,
-        apiKey: String,
+        appKey: String,
         baseURL: String = "https://doopush.com/api/v1"
     ) {
-        tokenAcquisitionOnly = false
         let cleanedBaseURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedBaseURL = cleanedBaseURL.isEmpty ? "https://doopush.com/api/v1" : cleanedBaseURL
 
         self.config = DooPushConfig(
             appId: appId,
-            apiKey: apiKey,
+            appKey: appKey,
             baseURL: resolvedBaseURL
         )
 
@@ -86,6 +82,7 @@ import UserNotifications
 
         // 配置网络管理器
         networking.configure(with: config!)
+		networking.setInstallationToken(storage.getInstallationToken())
 
         // 配置统计管理器
         statisticsManager.configure(config: config!, networking: networking)
@@ -99,25 +96,19 @@ import UserNotifications
         DooPushLogger.info("DooPush SDK 配置完成 - AppID: \(appId), BaseURL: \(resolvedBaseURL)")
     }
 
-    /// 配置为本地 token 获取模式。该模式不需要 DooPush App ID 或 API Key。
+    /// 在没有 DooPush 配置时启用通知处理能力，供 `acquirePushToken` 使用。
+    /// 如果 SDK 已正常配置，不会覆盖配置或改变现有网络功能。
     @objc public func configureForTokenAcquisition() {
-        tokenAcquisitionOnly = true
-        config = nil
-        pendingDeviceToken = nil
-        wsConnection?.disconnect()
-        wsConnection = nil
-        storage.clearConfig()
-        storage.clearDeviceId()
         enableAutomaticNotificationTracking()
-        DooPushLogger.info("DooPush SDK 已配置为本地 token 获取模式")
+        DooPushLogger.info("DooPush SDK 已准备获取原生 token")
     }
 
     /// Objective‑C 便捷配置方法：允许省略 `baseURL` 参数（使用默认 https://doopush.com/api/v1）
     /// - Parameters:
     ///   - appId: 应用ID
-    ///   - apiKey: API密钥
-    @objc public func configure(appId: String, apiKey: String) {
-        self.configure(appId: appId, apiKey: apiKey, baseURL: "https://doopush.com/api/v1")
+    ///   - appKey: App Key
+    @objc public func configure(appId: String, appKey: String) {
+        self.configure(appId: appId, appKey: appKey, baseURL: "https://doopush.com/api/v1")
     }
 
     // MARK: - 推送注册
@@ -125,11 +116,26 @@ import UserNotifications
     /// 注册推送通知
     /// - Parameter completion: 完成回调，返回设备token或错误
     @objc public func registerForPushNotifications(completion: @escaping (String?, Error?) -> Void) {
-        guard config != nil || tokenAcquisitionOnly else {
+        guard config != nil else {
             let error = DooPushError.notConfigured
             completion(nil, error)
             return
         }
+
+        requestPushToken(registerWithDooPush: true, completion: completion)
+    }
+
+    /// 获取原生 APNs token，但不向 DooPush 注册设备。
+    @objc public func acquirePushToken(completion: @escaping (String?, Error?) -> Void) {
+        requestPushToken(registerWithDooPush: false, completion: completion)
+    }
+
+    private func requestPushToken(
+        registerWithDooPush: Bool,
+        completion: @escaping (String?, Error?) -> Void
+    ) {
+        registrationCompletion = completion
+        shouldRegisterAcquiredToken = registerWithDooPush
 
         // 请求推送权限
         UNUserNotificationCenter.current().requestAuthorization(
@@ -140,6 +146,8 @@ import UserNotifications
                 if let error = error {
                     DooPushLogger.error("推送权限请求失败: \(error)")
                     completion(nil, error)
+                    self?.registrationCompletion = nil
+                    self?.shouldRegisterAcquiredToken = true
                     return
                 }
 
@@ -151,17 +159,20 @@ import UserNotifications
                     DooPushLogger.warning("用户拒绝了推送权限")
                     let error = DooPushError.pushPermissionDenied
                     completion(nil, error)
+                    self?.registrationCompletion = nil
+                    self?.shouldRegisterAcquiredToken = true
                     self?.storage.setPushPermissionGranted(false)
                 }
             }
         }
 
-        // 保存完成回调
-        self.registrationCompletion = completion
     }
 
     /// 设备token注册完成回调
     private var registrationCompletion: ((String?, Error?) -> Void)?
+
+    /// 当前一次系统 token 请求成功后是否继续向 DooPush 注册。
+    private var shouldRegisterAcquiredToken = true
 
     /// 待重试的设备token（用于网络权限申请后的重试）
     private var pendingDeviceToken: String? = nil
@@ -173,11 +184,11 @@ import UserNotifications
 
         DooPushLogger.info("获取到设备token: \(tokenString)")
 
-        if tokenAcquisitionOnly {
+        if !shouldRegisterAcquiredToken {
+            shouldRegisterAcquiredToken = true
             storage.saveDeviceToken(tokenString)
             registrationCompletion?(tokenString, nil)
             registrationCompletion = nil
-            delegate?.dooPush(self, didRegisterWithToken: tokenString)
             return
         }
 
@@ -192,6 +203,7 @@ import UserNotifications
 
         registrationCompletion?(nil, error)
         registrationCompletion = nil
+        shouldRegisterAcquiredToken = true
 
         delegate?.dooPush(self, didFailWithError: error)
     }
@@ -226,12 +238,14 @@ import UserNotifications
         ) { [weak self] result in
             guard let self = self else { return }
             switch result {
-            case .success(let deviceId):
+			case .success(let registration):
+				let deviceId = registration.deviceId
                 DooPushLogger.info("外部 token 注册成功，vendor=\(resolvedVendor), deviceId=\(deviceId)")
                 self.storage.saveDeviceToken(token)
-                self.storage.saveDeviceId(String(deviceId))
+				self.storage.saveDeviceId(String(deviceId))
+				self.storage.saveInstallationToken(registration.installationToken)
                 // 与 registerForPushNotifications 保持一致：成功后连接 Gateway
-                self.connectToGateway(token: token)
+                self.connectToGateway()
                 self.delegate?.dooPush(self, didRegisterWithToken: token)
                 completion(String(deviceId), nil)
             case .failure(let error):
@@ -261,15 +275,17 @@ import UserNotifications
             guard let self = self else { return }
 
             switch result {
-            case .success(let deviceId):
+			case .success(let registration):
+				let deviceId = registration.deviceId
                 DooPushLogger.info("设备注册成功，设备ID: \(deviceId)")
 
                 // 保存设备信息
                 self.storage.saveDeviceToken(token)
-                self.storage.saveDeviceId(String(deviceId))
+				self.storage.saveDeviceId(String(deviceId))
+				self.storage.saveInstallationToken(registration.installationToken)
 
                 // 连接 WebSocket Gateway
-                self.connectToGateway(token: token)
+                self.connectToGateway()
 
                 // 调用回调
                 self.registrationCompletion?(token, nil)
@@ -298,7 +314,6 @@ import UserNotifications
 
     /// 更新设备信息到服务器
     @objc public func updateDeviceInfo() {
-        guard !tokenAcquisitionOnly else { return }
         guard let config = config,
               let deviceToken = storage.getDeviceToken() else {
             DooPushLogger.warning("无法更新设备信息：配置或设备token缺失")
@@ -326,7 +341,6 @@ import UserNotifications
 
     /// 检查并在需要时更新设备信息
     private func checkAndUpdateDeviceInfoIfNeeded() {
-        guard !tokenAcquisitionOnly else { return }
         // 如果没有设备token，无需更新
         guard storage.getDeviceToken() != nil else {
             DooPushLogger.debug("没有设备token，跳过自动更新")
@@ -365,9 +379,7 @@ import UserNotifications
     /// 记录推送接收统计
     /// - Parameter pushData: 推送数据
     private func recordNotificationReceived(_ pushData: DooPushNotificationData) {
-        if !tokenAcquisitionOnly {
-            statisticsManager.recordNotificationReceived(pushData: pushData, userInfo: pushData.rawData)
-        }
+        statisticsManager.recordNotificationReceived(pushData: pushData, userInfo: pushData.rawData)
     }
 
     /// 处理推送通知点击事件
@@ -380,9 +392,7 @@ import UserNotifications
         let pushData = DooPushNotificationParser.parse(userInfo)
 
         // 记录点击统计
-        if !tokenAcquisitionOnly {
-            statisticsManager.recordNotificationClick(pushData: pushData, userInfo: userInfo)
-        }
+        statisticsManager.recordNotificationClick(pushData: pushData, userInfo: userInfo)
 
         // 通知代理
         delegate?.dooPush?(self, didClickNotification: userInfo)
@@ -400,9 +410,7 @@ import UserNotifications
         let pushData = DooPushNotificationParser.parse(userInfo)
 
         // 记录打开统计
-        if !tokenAcquisitionOnly {
-            statisticsManager.recordNotificationOpen(pushData: pushData, userInfo: userInfo)
-        }
+        statisticsManager.recordNotificationOpen(pushData: pushData, userInfo: userInfo)
 
         // 通知代理
         delegate?.dooPush?(self, didOpenNotification: userInfo)
@@ -412,7 +420,6 @@ import UserNotifications
 
     /// 立即上报统计数据
     @objc public func reportStatistics() {
-        guard !tokenAcquisitionOnly else { return }
         statisticsManager.reportPendingEvents()
     }
 
@@ -555,12 +562,13 @@ import UserNotifications
     }
 
     /// 连接到 WebSocket Gateway
-    /// - Parameters:
-    ///   - token: 设备 APNs token（用作鉴权凭据）
-    private func connectToGateway(token: String) {
-        guard !tokenAcquisitionOnly else { return }
+    private func connectToGateway() {
         guard let config = config else {
             DooPushLogger.error("SDK配置缺失，无法连接Gateway")
+            return
+        }
+        guard let installationToken = storage.getInstallationToken(), !installationToken.isEmpty else {
+            DooPushLogger.warning("无法连接 WebSocket Gateway：Installation Token 缺失，请先注册设备")
             return
         }
 
@@ -572,8 +580,7 @@ import UserNotifications
         let ws = DooPushWebSocketConnection(
             baseUrl: config.baseURL,
             appId: config.appId,
-            appKey: config.apiKey,
-            token: token
+            installationToken: installationToken
         )
         ws.listener = self
         wsConnection = ws
@@ -582,11 +589,7 @@ import UserNotifications
 
     /// 手动连接 WebSocket
     @objc public func connectWebSocket() {
-        guard let token = storage.getDeviceToken() else {
-            DooPushLogger.warning("无法连接 WebSocket：设备token缺失")
-            return
-        }
-        connectToGateway(token: token)
+        connectToGateway()
     }
 
     /// 手动断开 WebSocket
@@ -617,8 +620,8 @@ import UserNotifications
             ws.reconnectIfNeeded()
             return
         }
-        if let token = storage.getDeviceToken(), config != nil {
-            connectToGateway(token: token)
+        if storage.getInstallationToken() != nil, config != nil {
+            connectToGateway()
         }
     }
 

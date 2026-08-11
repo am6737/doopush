@@ -22,15 +22,15 @@ https://doopush.com/api/v1
 
 设备相关接口分两类：
 
-- **设备注册** (`POST /apps/{appId}/devices`)：使用 **API Key** (`X-API-Key`)，由 SDK / 服务端在握手前调用。
+- **设备注册** (`POST /apps/{appId}/devices`)：使用公开的 **App Key** (`X-App-Key`)，由 SDK 在首次接入时调用。
 - **管理类查询 / 操作**（设备列表、设备详情、状态变更、删除、标签）：使用登录后获得的 **JWT Token** (`Authorization: Bearer`)。
 
-API Key 不再分级，无 `device` / `push` 等权限粒度。
+App Key 只允许注册安装实例，不能调用设备管理或推送接口。
 
 **认证方式**：
 ```bash
-# 设备注册：API Key
--H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# 设备注册：App Key
+-H "X-App-Key: dp_ak_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # 管理接口：JWT
 -H "Authorization: Bearer <jwt_token>"
@@ -38,7 +38,7 @@ API Key 不再分级，无 `device` / `push` 等权限粒度。
 
 ## 📱 注册设备
 
-注册设备以接收推送通知。需要验证 API Key 属于指定应用且 bundle_id 与应用包名匹配。
+注册设备以接收推送通知。服务端会验证 App Key 属于指定应用且 bundle_id 与应用包名匹配，并返回 SDK 内部使用的 Installation Token。
 
 ### 请求信息
 
@@ -101,7 +101,7 @@ API Key 不再分级，无 `device` / `push` 等权限粒度。
 
 ```bash
 curl -X POST "https://doopush.com/api/v1/apps/123/devices" \
-     -H "X-API-Key: dp_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+     -H "X-App-Key: dp_ak_x" \
      -H "Content-Type: application/json" \
      -d '{
        "token": "abc123def456ghi789...",
@@ -485,7 +485,7 @@ curl -X GET "https://doopush.com/api/v1/apps/123/tags/devices?tag_name=user_leve
 | 状态码 | 错误码 | 描述 | 解决方案 |
 |--------|--------|------|----------|
 | 400 | 400 | 请求参数错误 | 检查请求参数格式和内容 |
-| 401 | 401 | API密钥无效或与应用不匹配 | 检查API Key和应用ID |
+| 401 | 401 | App Key无效或与应用不匹配 | 检查 App Key 和应用 ID |
 | 403 | 403 | 无权限 | 确认当前用户对该应用有访问权限 |
 | 404 | 404 | 设备不存在 | 检查设备ID或Token是否正确 |
 | 422 | 422 | Bundle ID与应用包名不匹配 | 确保bundle_id与应用设置一致 |

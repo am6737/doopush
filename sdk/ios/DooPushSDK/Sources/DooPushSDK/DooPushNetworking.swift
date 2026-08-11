@@ -5,6 +5,7 @@ public class DooPushNetworking {
     
     /// 配置信息
     private var config: DooPushConfig?
+	private var installationToken: String?
     
     /// URL Session
     private lazy var session: URLSession = {
@@ -19,6 +20,10 @@ public class DooPushNetworking {
     public func configure(with config: DooPushConfig) {
         self.config = config
     }
+
+	public func setInstallationToken(_ token: String?) {
+		installationToken = token
+	}
     
     // MARK: - 设备注册相关
     
@@ -32,7 +37,7 @@ public class DooPushNetworking {
         appId: String,
         token: String,
         deviceInfo: DeviceInfo,
-        completion: @escaping (Result<Int, DooPushError>) -> Void
+		completion: @escaping (Result<DeviceRegistrationResult, DooPushError>) -> Void
     ) {
         registerDeviceWithRetry(
             appId: appId,
@@ -55,7 +60,7 @@ public class DooPushNetworking {
         token: String,
         deviceInfo: DeviceInfo,
         retryCount: Int,
-        completion: @escaping (Result<Int, DooPushError>) -> Void
+		completion: @escaping (Result<DeviceRegistrationResult, DooPushError>) -> Void
     ) {
         guard let config = config else {
             completion(.failure(.notConfigured))
@@ -85,7 +90,12 @@ public class DooPushNetworking {
         ) { result in
             switch result {
             case .success(let response):
-                completion(.success(response.id))
+				guard let installationToken = response.installationToken, !installationToken.isEmpty else {
+					completion(.failure(.invalidResponse))
+					return
+				}
+				self.installationToken = installationToken
+				completion(.success(DeviceRegistrationResult(deviceId: response.id, installationToken: installationToken)))
             case .failure(let error):
                 // 检查是否可以重试
                 if retryCount > 0 && self.shouldRetry(error: error) {
@@ -211,7 +221,11 @@ public class DooPushNetworking {
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("DooPushSDK/\(DooPushManager.sdkVersion)", forHTTPHeaderField: "User-Agent")
-        request.setValue(config.apiKey, forHTTPHeaderField: "X-API-Key")
+		if requestURL.path.hasSuffix("/devices") {
+			request.setValue(config.appKey, forHTTPHeaderField: "X-App-Key")
+		} else if let installationToken {
+			request.setValue("Bearer \(installationToken)", forHTTPHeaderField: "Authorization")
+		}
         
         // 设置请求体
         if let body = body {
@@ -442,6 +456,8 @@ public struct DeviceResponseInfo: Codable {
     public let lastSeen: String?
     public let createdAt: String
     public let updatedAt: String
+	public let installationId: String?
+	public let installationToken: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -459,12 +475,19 @@ public struct DeviceResponseInfo: Codable {
         case lastSeen = "last_seen"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+		case installationId = "installation_id"
+		case installationToken = "installation_token"
     }
     
     /// 获取设备ID字符串形式（兼容旧版本）
     public var deviceId: String {
         return String(id)
     }
+}
+
+public struct DeviceRegistrationResult {
+	public let deviceId: Int
+	public let installationToken: String
 }
 
 /// API标准响应格式

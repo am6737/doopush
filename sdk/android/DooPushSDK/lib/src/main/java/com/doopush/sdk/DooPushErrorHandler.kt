@@ -141,7 +141,7 @@ object DooPushErrorHandler {
         
         val (code, message) = when (field) {
             "appId" -> Pair(DooPushError.CONFIG_INVALID_APP_ID, "应用ID无效")
-            "apiKey" -> Pair(DooPushError.CONFIG_INVALID_API_KEY, "API密钥无效")
+            "appKey" -> Pair(DooPushError.CONFIG_INVALID_APP_KEY, "App Key无效")
             "baseUrl" -> Pair(DooPushError.CONFIG_INVALID_BASE_URL, "服务器地址无效")
             else -> Pair(DooPushError.CONFIG_NOT_INITIALIZED, "配置参数无效")
         }

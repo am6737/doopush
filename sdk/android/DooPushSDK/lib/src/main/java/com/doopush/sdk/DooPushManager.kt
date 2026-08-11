@@ -22,6 +22,7 @@ class DooPushManager private constructor() {
         private const val PREFS_NAME = "DooPushSDK.Storage"
         private const val PREF_DEVICE_TOKEN = "device_token"
         private const val PREF_DEVICE_ID = "device_id"
+		private const val PREF_INSTALLATION_TOKEN = "installation_token"
         private const val PREF_VENDOR = "vendor"
         private const val PREF_BADGE_COUNT = "badge_count"
 
@@ -126,7 +127,7 @@ class DooPushManager private constructor() {
     // 状态管理
     private val isConfigured = AtomicBoolean(false)
     private val isRegistering = AtomicBoolean(false)
-    private val tokenAcquisitionOnly = AtomicBoolean(false)
+    private val hasDooPushConfiguration = AtomicBoolean(false)
     
     // Handler
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -138,6 +139,7 @@ class DooPushManager private constructor() {
     private var cachedDeviceInfo: DeviceInfo? = null
     private var cachedToken: String? = null
     private var cachedDeviceId: String? = null
+	private var cachedInstallationToken: String? = null
     
     init {
         Log.d(TAG, "DooPushManager 初始化")
@@ -170,7 +172,7 @@ class DooPushManager private constructor() {
      * 
      * @param context Android上下文
      * @param appId 应用ID
-     * @param apiKey API密钥
+     * @param appKey App Key
      * @param baseURL 服务器基础URL (可选)
      * @param hmsConfig HMS推送配置 (可选)
      * @param xiaomiConfig 小米推送配置 (可选)
@@ -184,7 +186,7 @@ class DooPushManager private constructor() {
     fun configure(
         context: Context,
         appId: String,
-        apiKey: String,
+        appKey: String,
         baseURL: String = DooPushConfig.DEFAULT_BASE_URL,
         hmsConfig: DooPushConfig.HMSConfig? = null,
         xiaomiConfig: DooPushConfig.XiaomiConfig? = null,
@@ -194,7 +196,7 @@ class DooPushManager private constructor() {
         honorConfig: DooPushConfig.HonorConfig? = null
     ) {
         try {
-            tokenAcquisitionOnly.set(false)
+            hasDooPushConfiguration.set(true)
             Log.d(TAG, "开始配置 DooPush SDK")
             
             // 保存应用上下文
@@ -280,13 +282,14 @@ class DooPushManager private constructor() {
             }
             
             // 创建配置
-            config = DooPushConfig.create(appId, apiKey, baseURL, finalHmsConfig, finalXiaomiConfig, finalOppoConfig, finalVivoConfig, finalMeizuConfig, finalHonorConfig)
+            config = DooPushConfig.create(appId, appKey, baseURL, finalHmsConfig, finalXiaomiConfig, finalOppoConfig, finalVivoConfig, finalMeizuConfig, finalHonorConfig)
 
             // 初始化各组件
             deviceManager = DooPushDevice(applicationContext!!)
             networking = DooPushNetworking(config!!).apply {
                 // 设置设备Token提供者
                 setDeviceTokenProvider { cachedToken }
+				setInstallationToken(cachedInstallationToken)
             }
             fcmService = FCMService(context.applicationContext)
             hmsService = HMSService(context.applicationContext)
@@ -336,20 +339,28 @@ class DooPushManager private constructor() {
         } catch (e: Exception) {
             Log.e(TAG, "DooPush SDK 配置失败", e)
             isConfigured.set(false)
+            hasDooPushConfiguration.set(false)
             throw e
         }
     }
 
-    /** 配置为仅获取原生推送 token 的模式，不访问 DooPush 服务端。 */
+    /**
+     * 在没有 DooPush 配置时初始化原生推送服务，供 [acquirePushToken] 使用。
+     * 如果 SDK 已正常配置，不会覆盖配置或改变现有网络功能。
+     */
     fun configureForTokenAcquisition(context: Context) {
+        if (isConfigured.get()) {
+            Log.d(TAG, "SDK 已配置，保留现有配置用于获取原生 token")
+            return
+        }
         configure(
             context = context,
             appId = "local-token-acquisition",
-            apiKey = "local-token-acquisition",
+            appKey = "dp_ak_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         )
-        tokenAcquisitionOnly.set(true)
+        hasDooPushConfiguration.set(false)
         DooPushStatistics.disableReporting()
-        Log.i(TAG, "DooPush SDK 已配置为本地 token 获取模式")
+        Log.i(TAG, "DooPush SDK 已准备获取原生 token")
     }
     
     /**
@@ -373,9 +384,38 @@ class DooPushManager private constructor() {
             callback?.onError(error) ?: this.callback?.onRegisterError(error)
             return
         }
+
+        if (!hasDooPushConfiguration.get()) {
+            val error = DooPushError.configNotInitialized()
+            callback?.onError(error) ?: this.callback?.onRegisterError(error)
+            return
+        }
+
+        requestPushToken(registerWithDooPush = true, callback = callback)
+    }
+
+    /** 获取最佳原生推送 token，但不向 DooPush 注册设备。 */
+    fun acquirePushToken(callback: DooPushRegisterCallback) {
+        if (!checkInitialized()) {
+            callback.onError(DooPushError.configNotInitialized())
+            return
+        }
+
+        requestPushToken(registerWithDooPush = false, callback = callback)
+    }
+
+    private fun requestPushToken(
+        registerWithDooPush: Boolean,
+        callback: DooPushRegisterCallback?
+    ) {
         
         if (isRegistering.get()) {
-            Log.w(TAG, "正在注册中，跳过重复请求")
+            Log.w(TAG, "另一个 token 请求正在进行，拒绝重复请求")
+            val error = DooPushError(
+                code = DooPushError.REGISTRATION_IN_PROGRESS,
+                message = "另一个 token 请求正在进行，请稍后重试"
+            )
+            callback?.onError(error) ?: this.callback?.onRegisterError(error)
             return
         }
         
@@ -388,7 +428,8 @@ class DooPushManager private constructor() {
         mainHandler.postDelayed({
             if (isRegistering.get()) {
                 isRegistering.set(false)
-                val error = DooPushError.networkTimeout("注册推送超时，请检查设备网络或厂商服务可用性")
+                val operation = if (registerWithDooPush) "注册推送" else "获取推送 token"
+                val error = DooPushError.networkTimeout("${operation}超时，请检查设备网络或厂商服务可用性")
                 Log.e(TAG, error.getFullDescription())
                 callback?.onError(error) ?: this.callback?.onRegisterError(error)
             }
@@ -412,8 +453,8 @@ class DooPushManager private constructor() {
                                 override fun onSuccess(token: String) {
                                     Log.d(TAG, "HMS Token获取成功: ${token.substring(0, 12)}...")
                                     cachedToken = token
-                                    // 调用设备注册API
-                                    registerDeviceToServer(deviceInfo, token, callback)
+                                    // 根据本次请求决定返回 token 或继续注册设备
+                                    completePushTokenRequest(deviceInfo, token, registerWithDooPush, callback)
                                 }
                                 
                                 override fun onError(error: DooPushError) {
@@ -425,7 +466,7 @@ class DooPushManager private constructor() {
                         )
                     } else {
                         Log.w(TAG, "HMS未配置，fallback到FCM")
-                        registerWithFCM(callback)
+                        registerWithFCM(registerWithDooPush, callback)
                     }
                 }
                 DooPushDeviceVendor.PushService.MIPUSH -> {
@@ -439,8 +480,8 @@ class DooPushManager private constructor() {
                                 override fun onSuccess(token: String) {
                                     Log.d(TAG, "小米推送Token获取成功: ${token.substring(0, 12)}...")
                                     cachedToken = token
-                                    // 调用设备注册API
-                                    registerDeviceToServer(deviceInfo, token, callback)
+                                    // 根据本次请求决定返回 token 或继续注册设备
+                                    completePushTokenRequest(deviceInfo, token, registerWithDooPush, callback)
                                 }
                                 
                                 override fun onError(error: DooPushError) {
@@ -452,7 +493,7 @@ class DooPushManager private constructor() {
                         )
                     } else {
                         Log.w(TAG, "小米推送未配置，fallback到FCM")
-                        registerWithFCM(callback)
+                        registerWithFCM(registerWithDooPush, callback)
                     }
                 }
                 DooPushDeviceVendor.PushService.OPPO -> {
@@ -466,8 +507,8 @@ class DooPushManager private constructor() {
                                 override fun onSuccess(token: String) {
                                     Log.d(TAG, "OPPO推送Token获取成功: ${token.substring(0, 12)}...")
                                     cachedToken = token
-                                    // 调用设备注册API
-                                    registerDeviceToServer(deviceInfo, token, callback)
+                                    // 根据本次请求决定返回 token 或继续注册设备
+                                    completePushTokenRequest(deviceInfo, token, registerWithDooPush, callback)
                                 }
                                 
                                 override fun onError(error: DooPushError) {
@@ -479,7 +520,7 @@ class DooPushManager private constructor() {
                         )
                     } else {
                         Log.w(TAG, "OPPO推送未配置，fallback到FCM")
-                        registerWithFCM(callback)
+                        registerWithFCM(registerWithDooPush, callback)
                     }
                 }
                 DooPushDeviceVendor.PushService.VIVO -> {
@@ -493,8 +534,8 @@ class DooPushManager private constructor() {
                                 override fun onSuccess(token: String) {
                                     Log.d(TAG, "VIVO推送Token获取成功: ${token.substring(0, 12)}...")
                                     cachedToken = token
-                                    // 调用设备注册API
-                                    registerDeviceToServer(deviceInfo, token, callback)
+                                    // 根据本次请求决定返回 token 或继续注册设备
+                                    completePushTokenRequest(deviceInfo, token, registerWithDooPush, callback)
                                 }
                                 
                                 override fun onError(error: DooPushError) {
@@ -506,7 +547,7 @@ class DooPushManager private constructor() {
                         )
                     } else {
                         Log.w(TAG, "VIVO推送未配置，fallback到FCM")
-                        registerWithFCM(callback)
+                        registerWithFCM(registerWithDooPush, callback)
                     }
                 }
                 DooPushDeviceVendor.PushService.MEIZU -> {
@@ -520,8 +561,8 @@ class DooPushManager private constructor() {
                                 override fun onSuccess(token: String) {
                                     Log.d(TAG, "魅族推送Token获取成功: ${token.substring(0, 12)}...")
                                     cachedToken = token
-                                    // 调用设备注册API
-                                    registerDeviceToServer(deviceInfo, token, callback)
+                                    // 根据本次请求决定返回 token 或继续注册设备
+                                    completePushTokenRequest(deviceInfo, token, registerWithDooPush, callback)
                                 }
                                 
                                 override fun onError(error: DooPushError) {
@@ -533,7 +574,7 @@ class DooPushManager private constructor() {
                         )
                     } else {
                         Log.w(TAG, "魅族推送未配置，fallback到FCM")
-                        registerWithFCM(callback)
+                        registerWithFCM(registerWithDooPush, callback)
                     }
                 }
                 DooPushDeviceVendor.PushService.HONOR -> {
@@ -547,8 +588,8 @@ class DooPushManager private constructor() {
                                 override fun onSuccess(token: String) {
                                     Log.d(TAG, "荣耀推送Token获取成功: ${token.substring(0, 12)}...")
                                     cachedToken = token
-                                    // 调用设备注册API
-                                    registerDeviceToServer(deviceInfo, token, callback)
+                                    // 根据本次请求决定返回 token 或继续注册设备
+                                    completePushTokenRequest(deviceInfo, token, registerWithDooPush, callback)
                                 }
                                 
                                 override fun onError(error: DooPushError) {
@@ -560,12 +601,12 @@ class DooPushManager private constructor() {
                         )
                     } else {
                         Log.w(TAG, "荣耀推送未配置，fallback到FCM")
-                        registerWithFCM(callback)
+                        registerWithFCM(registerWithDooPush, callback)
                     }
                 }
                 else -> {
                     // 其他设备默认使用FCM
-                    registerWithFCM(callback)
+                    registerWithFCM(registerWithDooPush, callback)
                 }
             }
             
@@ -577,7 +618,10 @@ class DooPushManager private constructor() {
         }
     }
 
-    private fun registerWithFCM(callback: DooPushRegisterCallback?) {
+    private fun registerWithFCM(
+        registerWithDooPush: Boolean,
+        callback: DooPushRegisterCallback?
+    ) {
         // 获取设备信息（channel=fcm）
         val deviceInfo = deviceManager!!.getCurrentDeviceInfo("fcm")
         cachedDeviceInfo = deviceInfo
@@ -586,8 +630,8 @@ class DooPushManager private constructor() {
             override fun onSuccess(token: String) {
                 Log.d(TAG, "FCM Token获取成功: ${token.substring(0, 12)}...")
                 cachedToken = token
-                // 调用设备注册API
-                registerDeviceToServer(deviceInfo, token, callback)
+                // 根据本次请求决定返回 token 或继续注册设备
+                completePushTokenRequest(deviceInfo, token, registerWithDooPush, callback)
             }
             
             override fun onError(error: DooPushError) {
@@ -888,8 +932,8 @@ class DooPushManager private constructor() {
             callback?.invoke(false, error)
             return
         }
-        if (tokenAcquisitionOnly.get()) {
-            Log.d(TAG, "本地 token 模式跳过设备信息上报")
+        if (!hasDooPushConfiguration.get()) {
+            Log.d(TAG, "未配置 DooPush 凭据，跳过设备信息上报")
             callback?.invoke(false, DooPushError.configNotInitialized())
             return
         }
@@ -915,9 +959,10 @@ class DooPushManager private constructor() {
 
         cachedDeviceInfo = deviceInfo
         networking?.registerDevice(deviceInfo, token, object : DooPushNetworking.RegisterDeviceCallback {
-            override fun onSuccess(deviceId: String) {
-                cachedDeviceId = deviceId
-                persistRegistration(token, deviceId, channel)
+			override fun onSuccess(deviceId: String, installationToken: String) {
+				cachedDeviceId = deviceId
+				cachedInstallationToken = installationToken
+				persistRegistration(token, deviceId, channel, installationToken)
                 Log.i(TAG, "设备信息更新成功")
                 callback?.invoke(true, null)
             }
@@ -963,22 +1008,49 @@ class DooPushManager private constructor() {
         if (cachedDeviceId.isNullOrEmpty()) {
             cachedDeviceId = prefs.getString(PREF_DEVICE_ID, null)
         }
+		cachedInstallationToken = prefs.getString(PREF_INSTALLATION_TOKEN, null)
     }
 
-    private fun persistRegistration(token: String, deviceId: String, vendor: String) {
-        prefs()?.edit()
+	private fun persistRegistration(token: String, deviceId: String, vendor: String, installationToken: String) {
+		val editor = prefs()?.edit()
             ?.putString(PREF_DEVICE_TOKEN, token)
             ?.putString(PREF_DEVICE_ID, deviceId)
             ?.putString(PREF_VENDOR, vendor)
+		if (installationToken.isNotBlank()) {
+			editor?.putString(PREF_INSTALLATION_TOKEN, installationToken)
+		}
+		editor?.apply()
+    }
+
+    private fun persistAcquiredToken(token: String, vendor: String) {
+        prefs()?.edit()
+            ?.putString(PREF_DEVICE_TOKEN, token)
+            ?.putString(PREF_VENDOR, vendor)
             ?.apply()
     }
 
-    private fun persistNativeToken(token: String, vendor: String) {
-        prefs()?.edit()
-            ?.putString(PREF_DEVICE_TOKEN, token)
-            ?.remove(PREF_DEVICE_ID)
-            ?.putString(PREF_VENDOR, vendor)
-            ?.apply()
+    private fun completePushTokenRequest(
+        deviceInfo: DeviceInfo,
+        token: String,
+        registerWithDooPush: Boolean,
+        callback: DooPushRegisterCallback?
+    ) {
+        if (registerWithDooPush) {
+            registerDeviceToServer(deviceInfo, token, callback)
+            return
+        }
+
+        isRegistering.set(false)
+        cachedToken = token
+        cachedDeviceInfo = deviceInfo
+        persistAcquiredToken(token, deviceInfo.channel)
+        callback?.onSuccess(
+            DooPushRegisterResult(
+                token = token,
+                deviceId = "",
+                vendor = deviceInfo.channel
+            )
+        )
     }
     
     /**
@@ -996,7 +1068,7 @@ class DooPushManager private constructor() {
      * @param callback 测试结果回调
      */
     fun testNetworkConnection(callback: (Boolean) -> Unit) {
-        if (!checkInitialized() || tokenAcquisitionOnly.get()) {
+        if (!checkInitialized() || !hasDooPushConfiguration.get()) {
             callback(false)
             return
         }
@@ -1008,12 +1080,7 @@ class DooPushManager private constructor() {
      * 手动连接 WebSocket（注册成功后由 SDK 自动调用，通常无需手动调用）
      */
     fun connectWebSocket() {
-        val token = cachedToken
-        if (token.isNullOrEmpty()) {
-            Log.w(TAG, "无法连接 WebSocket：设备token缺失")
-            return
-        }
-        connectToGateway(token)
+        connectToGateway()
     }
 
     /**
@@ -1035,15 +1102,14 @@ class DooPushManager private constructor() {
         DooPushNotificationHandler.clearNotifications(context)
         if (checkInitialized()) {
             clearBadge()
-            val token = cachedToken
-            if (!token.isNullOrEmpty()) {
+            if (!cachedInstallationToken.isNullOrEmpty()) {
                 // 前台守卫：已有活跃连接则复用（断了才补一次），避免重复 onResume 时无脑重建、
                 // 自己挤掉自己触发服务端 4001。无活跃连接才新建。
                 val ws = wsConnection
                 if (ws != null && ws.isActive) {
                     ws.reconnectIfNeeded()
                 } else {
-                    connectToGateway(token)
+                    connectToGateway()
                 }
             }
         }
@@ -1057,7 +1123,7 @@ class DooPushManager private constructor() {
         // 后台限制：主动断开，等前台恢复后再重连（与 iOS 行为对齐）
         wsConnection?.disconnect()
         wsConnection = null
-        if (!tokenAcquisitionOnly.get()) {
+        if (hasDooPushConfiguration.get()) {
             DooPushStatistics.reportStatistics()
         }
     }
@@ -1069,7 +1135,7 @@ class DooPushManager private constructor() {
         wsConnection?.disconnect()
         Log.d(TAG, "应用即将终止，上报统计数据")
         // 应用终止时上报统计数据
-        if (!tokenAcquisitionOnly.get()) {
+        if (hasDooPushConfiguration.get()) {
             DooPushStatistics.reportStatistics()
         }
     }
@@ -1078,7 +1144,7 @@ class DooPushManager private constructor() {
      * 立即上报推送统计数据
      */
     fun reportStatistics() {
-        if (!checkInitialized() || tokenAcquisitionOnly.get()) {
+        if (!checkInitialized() || !hasDooPushConfiguration.get()) {
             return
         }
         
@@ -1121,6 +1187,7 @@ class DooPushManager private constructor() {
     private fun clearMemoryCache() {
         cachedToken = null
         cachedDeviceId = null
+		cachedInstallationToken = null
         cachedDeviceInfo = null
     }
 
@@ -1133,6 +1200,7 @@ class DooPushManager private constructor() {
         prefs()?.edit()
             ?.remove(PREF_DEVICE_TOKEN)
             ?.remove(PREF_DEVICE_ID)
+			?.remove(PREF_INSTALLATION_TOKEN)
             ?.remove(PREF_VENDOR)
             ?.apply()
     }
@@ -1192,7 +1260,7 @@ class DooPushManager private constructor() {
         vendor: String,
         callback: DooPushRegisterCallback
     ) {
-        if (!checkInitialized()) {
+        if (!checkInitialized() || !hasDooPushConfiguration.get()) {
             callback.onError(DooPushError.configNotInitialized())
             return
         }
@@ -1236,33 +1304,19 @@ class DooPushManager private constructor() {
         token: String,
         callback: DooPushRegisterCallback?
     ) {
-        if (tokenAcquisitionOnly.get()) {
-            isRegistering.set(false)
-            cachedToken = token
-            cachedDeviceId = null
-            cachedDeviceInfo = deviceInfo
-            persistNativeToken(token, deviceInfo.channel)
-            val result = DooPushRegisterResult(
-                token = token,
-                deviceId = "",
-                vendor = deviceInfo.channel
-            )
-            callback?.onSuccess(result) ?: this.callback?.onRegisterSuccess(result)
-            return
-        }
-
         networking!!.registerDevice(
             deviceInfo,
             token,
             object : DooPushNetworking.RegisterDeviceCallback {
-                override fun onSuccess(deviceId: String) {
+				override fun onSuccess(deviceId: String, installationToken: String) {
                     Log.i(TAG, "设备注册成功，设备ID: $deviceId")
                     isRegistering.set(false)
                     cachedToken = token
-                    cachedDeviceId = deviceId
-                    cachedDeviceInfo = deviceInfo
-                    persistRegistration(token, deviceId, deviceInfo.channel)
-                    connectToGateway(token)
+					cachedDeviceId = deviceId
+					cachedInstallationToken = installationToken
+					cachedDeviceInfo = deviceInfo
+					persistRegistration(token, deviceId, deviceInfo.channel, installationToken)
+					connectToGateway()
                     val result = DooPushRegisterResult(
                         token = token,
                         deviceId = deviceId,
@@ -1285,11 +1339,16 @@ class DooPushManager private constructor() {
     /**
      * 连接到 WebSocket Gateway
      */
-    private fun connectToGateway(token: String) {
-        if (tokenAcquisitionOnly.get()) return
+    private fun connectToGateway() {
+        if (!hasDooPushConfiguration.get()) return
         val config = this.config
         if (config == null) {
             Log.e(TAG, "SDK配置缺失，无法连接 WebSocket Gateway")
+            return
+        }
+        val installationToken = cachedInstallationToken
+        if (installationToken.isNullOrBlank()) {
+            Log.w(TAG, "无法连接 WebSocket Gateway：Installation Token 缺失，请先注册设备")
             return
         }
 
@@ -1298,11 +1357,10 @@ class DooPushManager private constructor() {
         // 断开可能存在的旧连接
         wsConnection?.disconnect()
 
-        wsConnection = DooPushWebSocketConnection(
+		wsConnection = DooPushWebSocketConnection(
             baseUrl = config.baseURL,
             appId = config.appId,
-            appKey = config.apiKey,
-            token = token,
+            installationToken = installationToken,
             listener = wsListener,
         )
         wsConnection?.connect()
@@ -1340,7 +1398,7 @@ class DooPushManager private constructor() {
         val deviceId = getDeviceId()
         val vendor = getCurrentVendor()
         if (!deviceId.isNullOrEmpty() && !vendor.isNullOrEmpty()) {
-            persistRegistration(newToken, deviceId, vendor)
+			persistRegistration(newToken, deviceId, vendor, cachedInstallationToken ?: "")
         }
         
         // 如果已配置且有旧token，更新服务器

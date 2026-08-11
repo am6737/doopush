@@ -6,7 +6,7 @@ import java.util.regex.Pattern
 /**
  * DooPush SDK 配置类
  * 
- * 管理SDK的配置参数，包括应用ID、API密钥和服务器地址
+ * 管理SDK的配置参数，包括应用ID、App Key和服务器地址
  */
 data class DooPushConfig(
     
@@ -17,10 +17,10 @@ data class DooPushConfig(
     val appId: String,
     
     /**
-     * API密钥
-     * 用于API请求认证的密钥
+     * App Key
+     * 仅用于向 DooPush 注册当前安装实例
      */
-    val apiKey: String,
+    val appKey: String,
     
     /**
      * 服务器基础URL
@@ -238,10 +238,9 @@ data class DooPushConfig(
         
         
         /**
-         * API密钥的正则表达式模式
-         * 格式: 数字、字母和特殊字符组成，长度为16-64位
+         * DooPush App Key 格式。
          */
-        private val API_KEY_PATTERN = Pattern.compile("^[a-zA-Z0-9_\\-\\.]{16,64}$")
+        private val APP_KEY_PATTERN = Pattern.compile("^dp_ak_[A-Za-z0-9]{32}$")
         
         /**
          * URL的正则表达式模式
@@ -256,7 +255,7 @@ data class DooPushConfig(
          * 创建配置实例并验证参数
          * 
          * @param appId 应用ID
-         * @param apiKey API密钥
+         * @param appKey App Key
          * @param baseURL 服务器基础URL (可选)
          * @param hmsConfig HMS推送配置 (可选)
          * @param xiaomiConfig 小米推送配置 (可选)
@@ -270,7 +269,7 @@ data class DooPushConfig(
         @Throws(DooPushConfigException::class)
         fun create(
             appId: String,
-            apiKey: String,
+            appKey: String,
             baseURL: String = DEFAULT_BASE_URL,
             hmsConfig: HMSConfig? = null,
             xiaomiConfig: XiaomiConfig? = null,
@@ -281,7 +280,7 @@ data class DooPushConfig(
         ): DooPushConfig {
             val config = DooPushConfig(
                 appId = appId.trim(),
-                apiKey = apiKey.trim(),
+                appKey = appKey.trim(),
                 baseURL = baseURL.trim().trimEnd('/'),
                 hmsConfig = hmsConfig,
                 xiaomiConfig = xiaomiConfig,
@@ -333,22 +332,22 @@ data class DooPushConfig(
         }
         
         
-        // 验证API密钥
-        if (apiKey.isEmpty()) {
+        // 验证 App Key
+        if (appKey.isEmpty()) {
             throw DooPushConfigException(
                 DooPushError(
-                    code = DooPushError.CONFIG_INVALID_API_KEY,
-                    message = "API密钥不能为空"
+                    code = DooPushError.CONFIG_INVALID_APP_KEY,
+                    message = "App Key不能为空"
                 )
             )
         }
         
-        if (!API_KEY_PATTERN.matcher(apiKey).matches()) {
+        if (!APP_KEY_PATTERN.matcher(appKey).matches()) {
             throw DooPushConfigException(
                 DooPushError(
-                    code = DooPushError.CONFIG_INVALID_API_KEY,
-                    message = "API密钥格式无效，应为16-64位字符组成",
-                    details = "支持字母、数字、下划线、连字符和点号"
+                    code = DooPushError.CONFIG_INVALID_APP_KEY,
+                    message = "App Key格式无效",
+                    details = "应为 dp_ak_ 加 32 位字母或数字"
                 )
             )
         }
@@ -417,11 +416,11 @@ data class DooPushConfig(
     
     /**
      * 获取配置的摘要信息（用于调试）
-     * API密钥会被部分隐藏
+     * App Key会被部分隐藏
      */
     fun getSummary(): String {
-        val maskedApiKey = if (apiKey.length > 8) {
-            "${apiKey.substring(0, 4)}****${apiKey.substring(apiKey.length - 4)}"
+        val maskedAppKey = if (appKey.length > 8) {
+            "${appKey.substring(0, 6)}****${appKey.substring(appKey.length - 4)}"
         } else {
             "****"
         }
@@ -436,7 +435,7 @@ data class DooPushConfig(
         return """
             |DooPush配置:
             |  应用ID: $appId
-            |  API密钥: $maskedApiKey
+            |  App Key: $maskedAppKey
             |  服务器: $baseURL
             |  环境: ${environment.name}
             |  $hmsInfo

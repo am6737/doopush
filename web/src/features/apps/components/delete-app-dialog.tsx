@@ -63,7 +63,7 @@ export function DeleteAppDialog({ app, open, onOpenChange, onSuccess }: DeleteAp
               <li>永久删除所有设备数据</li>
               <li>清除所有推送历史记录</li>
               <li>删除所有消息模板</li>
-              <li>撤销所有API密钥</li>
+              <li>撤销 App Key 和所有 App Secret</li>
               <li>停止所有定时推送任务</li>
             </ul>
           </AlertDescription>

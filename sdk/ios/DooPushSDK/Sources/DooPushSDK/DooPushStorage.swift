@@ -11,6 +11,7 @@ public class DooPushStorage {
         static let pushPermissionGranted = "DooPushSDK.PushPermissionGranted"
         static let lastDeviceUpdate = "DooPushSDK.LastDeviceUpdate"
         static let installationId = "DooPushSDK.InstallationId"
+		static let installationToken = "DooPushSDK.InstallationToken"
         static let sdkVersion = "DooPushSDK.SDKVersion"
         static let badgeCount = "DooPushSDK.BadgeCount"
     }
@@ -104,6 +105,15 @@ public class DooPushStorage {
     public func getDeviceId() -> String? {
         return userDefaults.string(forKey: Keys.deviceId)
     }
+
+	public func saveInstallationToken(_ token: String) {
+		userDefaults.set(token, forKey: Keys.installationToken)
+		userDefaults.synchronize()
+	}
+
+	public func getInstallationToken() -> String? {
+		return userDefaults.string(forKey: Keys.installationToken)
+	}
     
     /// 清除设备ID
     public func clearDeviceId() {
@@ -212,6 +222,7 @@ public class DooPushStorage {
             Keys.pushPermissionGranted,
             Keys.lastDeviceUpdate,
             Keys.installationId,
+			Keys.installationToken,
             Keys.sdkVersion
         ]
         
@@ -230,7 +241,8 @@ public class DooPushStorage {
             Keys.deviceToken,
             Keys.deviceId,
             Keys.pushPermissionGranted,
-            Keys.lastDeviceUpdate
+			Keys.lastDeviceUpdate,
+			Keys.installationToken
         ]
         
         for key in keys {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/doopush/doopush/api/internal/config"
 	"github.com/doopush/doopush/api/internal/models"
+	"github.com/doopush/doopush/api/pkg/utils"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -68,6 +69,33 @@ func AutoMigrate() {
 	// 一次性清理 TCP 时代的死字段（GORM AutoMigrate 不会删列）
 	_ = DB.Migrator().DropColumn(&models.Device{}, "gateway_node")
 	_ = DB.Migrator().DropColumn(&models.Device{}, "connection_id")
+
+	// 为升级前创建的应用补齐 App Key，并替换认证改造期间生成的旧格式 Key。
+	var apps []models.App
+	if err := DB.Where("app_key = '' OR app_key IS NULL OR app_key NOT REGEXP '^dp_ak_[A-Za-z0-9]{32}$'").Find(&apps).Error; err == nil {
+		for i := range apps {
+			appKey := utils.GenerateSecureToken(models.AppKeyPrefix)
+			if err := DB.Model(&apps[i]).Update("app_key", appKey).Error; err != nil {
+				log.Fatal("App Key回填失败:", err)
+			}
+		}
+	} else {
+		log.Fatal("查询待回填App Key失败:", err)
+	}
+
+	// 必须在旧数据回填之后创建唯一索引，否则多个空值会使升级迁移失败。
+	if !DB.Migrator().HasIndex(&models.App{}, "idx_apps_app_key") {
+		if err := DB.Exec("CREATE UNIQUE INDEX idx_apps_app_key ON apps (app_key)").Error; err != nil {
+			log.Fatal("创建App Key唯一索引失败:", err)
+		}
+	}
+
+	// 为升级前的用户审计记录补齐显式主体信息。
+	if err := DB.Model(&models.AuditLog{}).
+		Where("principal_id = 0 AND user_id > 0").
+		Updates(map[string]interface{}{"principal_type": "user", "principal_id": gorm.Expr("user_id")}).Error; err != nil {
+		log.Fatal("审计主体回填失败:", err)
+	}
 
 	log.Println("数据库迁移完成")
 }

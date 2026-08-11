@@ -21,31 +21,45 @@ final class DooPushSDKTests: XCTestCase {
     
     func testSDKConfiguration() throws {
         let appId = "test_app_id"
-        let apiKey = "test_api_key"
+        let appKey = "test_api_key"
         let baseURL = "https://test.doopush.com/api/v1"
         
-        manager.configure(appId: appId, apiKey: apiKey, baseURL: baseURL)
+        manager.configure(appId: appId, appKey: appKey, baseURL: baseURL)
         
         let storage = DooPushStorage()
         let config = storage.getConfig()
         
         XCTAssertNotNil(config)
         XCTAssertEqual(config?.appId, appId)
-        XCTAssertEqual(config?.apiKey, apiKey)
+        XCTAssertEqual(config?.appKey, appKey)
         XCTAssertEqual(config?.baseURL, baseURL)
     }
     
     func testConfigurationWithDefaultURL() throws {
         let appId = "test_app_id"
-        let apiKey = "test_api_key"
+        let appKey = "test_api_key"
         
-        manager.configure(appId: appId, apiKey: apiKey)
+        manager.configure(appId: appId, appKey: appKey)
         
         let storage = DooPushStorage()
         let config = storage.getConfig()
         
         XCTAssertNotNil(config)
         XCTAssertEqual(config?.baseURL, "https://doopush.com/api/v1")
+    }
+
+    func testTokenAcquisitionSetupPreservesExistingConfiguration() throws {
+        manager.configure(
+            appId: "configured_app",
+            appKey: "configured_api_key",
+            baseURL: "https://test.doopush.com/api/v1"
+        )
+
+        manager.configureForTokenAcquisition()
+
+        let config = DooPushStorage().getConfig()
+        XCTAssertEqual(config?.appId, "configured_app")
+        XCTAssertEqual(config?.appKey, "configured_api_key")
     }
     
     // MARK: - 设备信息测试
@@ -126,14 +140,21 @@ final class DooPushSDKTests: XCTestCase {
     func testConfigValidation() throws {
         let validConfig = DooPushConfig(
             appId: "test_app",
-            apiKey: "test_key",
+            appKey: "dp_ak_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             baseURL: "https://test.com"
         )
         XCTAssertTrue(validConfig.isValid)
+
+        let invalidAppKeyConfig = DooPushConfig(
+            appId: "test_app",
+            appKey: "dp_ak_test",
+            baseURL: "https://test.com"
+        )
+        XCTAssertFalse(invalidAppKeyConfig.isValid)
         
         let invalidConfig = DooPushConfig(
             appId: "",
-            apiKey: "test_key",
+            appKey: "test_key",
             baseURL: "https://test.com"
         )
         XCTAssertFalse(invalidConfig.isValid)
@@ -142,7 +163,7 @@ final class DooPushSDKTests: XCTestCase {
     func testConfigURLGeneration() throws {
         let config = DooPushConfig(
             appId: "123",
-            apiKey: "test_key",
+            appKey: "test_key",
             baseURL: "https://doopush.com/api/v1"
         )
         
@@ -158,21 +179,21 @@ final class DooPushSDKTests: XCTestCase {
     func testEnvironmentDetection() throws {
         let prodConfig = DooPushConfig(
             appId: "test",
-            apiKey: "key",
+            appKey: "key",
             baseURL: "https://doopush.com/api/v1"
         )
         XCTAssertEqual(prodConfig.environment, .production)
         
         let devConfig = DooPushConfig(
             appId: "test",
-            apiKey: "key",
+            appKey: "key",
             baseURL: "http://localhost:5001/api/v1"
         )
         XCTAssertEqual(devConfig.environment, .development)
         
         let customConfig = DooPushConfig(
             appId: "test",
-            apiKey: "key",
+            appKey: "key",
             baseURL: "https://custom.example.com/api"
         )
         if case .custom(let url) = customConfig.environment {

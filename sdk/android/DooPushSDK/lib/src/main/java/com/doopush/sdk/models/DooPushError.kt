@@ -37,7 +37,7 @@ data class DooPushError(
         
         // 配置相关错误码
         const val CONFIG_INVALID_APP_ID = 2001
-        const val CONFIG_INVALID_API_KEY = 2002
+        const val CONFIG_INVALID_APP_KEY = 2002
         const val CONFIG_INVALID_BASE_URL = 2003
         const val CONFIG_NOT_INITIALIZED = 2004
         const val CONFIG_INVALID_PARAMETER = 2005

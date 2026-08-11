@@ -35,7 +35,7 @@ export class DeviceService {
   }
 
   /**
-   * 注册设备 (API Key 认证)
+   * 注册设备（App Key 认证）
    */
   static async registerDevice(appId: number, data: {
     device_id: string
@@ -48,17 +48,10 @@ export class DeviceService {
     device_model?: string
     language?: string
     timezone?: string
-  }, apiKey: string): Promise<{
-    device: Device
-    gateway: {
-      host: string
-      port: number
-      ssl: boolean
-    }
-  }> {
+  }, appKey: string): Promise<Device & { installation_token: string }> {
     return apiClient.post(`/apps/${appId}/devices`, data, {
       headers: {
-        'X-API-Key': apiKey
+        'X-App-Key': appKey
       }
     })
   }

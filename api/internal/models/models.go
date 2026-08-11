@@ -11,10 +11,12 @@ func AllModels() []interface{} {
 		// 应用相关
 		&App{},
 		&AppAPIKey{},
+		&AppSecret{},
 		&AppConfig{},
 
 		// 设备相关
 		&Device{},
+		&InstallationCredential{},
 		&DeviceTagMap{},
 		&DeviceGroupMap{},
 

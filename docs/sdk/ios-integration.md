@@ -94,7 +94,7 @@ struct YourApp: App {
         // 配置 DooPush SDK
         DooPushManager.shared.configure(
             appId: "your_app_id_here",
-            apiKey: "your_api_key_here"
+            appKey: "dp_ak_xxx"
         )
         
         // 设置代理
@@ -507,7 +507,7 @@ struct ContentView: View {
 ```swift
 DooPushManager.shared.configure(
     appId: "your_app_id",
-    apiKey: "your_api_key",
+    appKey: "dp_ak_xxx",
     baseURL: "https://your-custom-server.com/api/v1"
 )
 ```
@@ -534,10 +534,10 @@ DooPushLogger.logCallback = { level, tag, message in
 
 ```swift
 // 完整配置（baseURL 默认 https://doopush.com/api/v1）
-func configure(appId: String, apiKey: String, baseURL: String = "https://doopush.com/api/v1")
+func configure(appId: String, appKey: String, baseURL: String = "https://doopush.com/api/v1")
 
 // Objective-C 友好的便捷重载
-func configure(appId: String, apiKey: String)
+func configure(appId: String, appKey: String)
 ```
 
 #### 推送注册

@@ -15,6 +15,7 @@ type App struct {
 	Platform    string         `gorm:"size:20;not null;comment:平台类型" json:"platform" example:"both" binding:"required,oneof=ios android both"`
 	AppIcon     string         `gorm:"size:255;comment:应用图标URL" json:"app_icon" example:"/uploads/icons/app_123.png"`
 	Status      int            `gorm:"default:1;comment:应用状态 1=正常 0=禁用" json:"status" example:"1"`
+	AppKey      string         `gorm:"size:80;comment:客户端公开接入Key" json:"app_key" example:"dp_ak_xxx"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
@@ -22,6 +23,7 @@ type App struct {
 
 	// 关联关系
 	APIKeys         []AppAPIKey         `gorm:"foreignKey:AppID" json:"api_keys,omitempty"`
+	AppSecrets      []AppSecret         `gorm:"foreignKey:AppID" json:"app_secrets,omitempty"`
 	Devices         []Device            `gorm:"foreignKey:AppID" json:"devices,omitempty"`
 	UserPermissions []UserAppPermission `gorm:"foreignKey:AppID" json:"user_permissions,omitempty"`
 }
@@ -40,9 +42,7 @@ type AppAPIKey struct {
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
-
-	// 关联关系
-	App App `gorm:"foreignKey:AppID" json:"app,omitempty"`
+	App       App            `gorm:"foreignKey:AppID" json:"app,omitempty"`
 }
 
 // AppConfig 应用推送配置模型

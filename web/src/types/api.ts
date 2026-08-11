@@ -17,7 +17,7 @@ export interface User {
 
 export interface UserAppPermission {
   id: number
-  user_id: number
+	user_id?: number
   app_id: number
   role: AppRole
   created_at: string
@@ -74,6 +74,7 @@ export interface App {
   status: number  // 1=启用, 0=禁用
   app_icon?: string
   role?: AppRole
+	app_key: string
   created_by?: number
   created_at: string
   updated_at: string
@@ -83,7 +84,6 @@ export interface AppAPIKey {
   id: number
   app_id: number
   name: string
-  key_hash: string
   key_prefix: string
   key_suffix: string
   status: number
@@ -91,8 +91,28 @@ export interface AppAPIKey {
   last_used: string | null
   created_at: string
   updated_at: string
-  // 用于显示的字段
-  last_4?: string
+}
+
+export type AppSecretScope =
+  | 'push:send'
+  | 'push:broadcast'
+  | 'push:schedule'
+
+export interface AppSecret {
+  id: number
+  app_id: number
+  name: string
+  prefix: string
+  suffix: string
+  scopes: AppSecretScope[]
+  status: number
+  expires_at: string | null
+  revoked_at: string | null
+  last_used_at: string | null
+  last_used_ip?: string
+  created_by: number
+  created_at: string
+  updated_at: string
 }
 
 export interface AppConfig {
@@ -310,6 +330,9 @@ export interface AuditFilters {
   end_time?: string
   ip_address?: string
   user_name?: string
+	principal_type?: 'user' | 'app_secret'
+	principal_id?: number
+	app_secret_id?: number
   app_id?: number
 }
 

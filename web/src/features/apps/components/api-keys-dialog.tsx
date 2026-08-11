@@ -1,164 +1,51 @@
 import { useEffect, useState } from 'react'
-import { Key, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogScrollBody,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-
+import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react'
 import { AppService } from '@/services/app-service'
-import { toast } from 'sonner'
-import type { App, AppAPIKey } from '@/types/api'
+import type { App, AppAPIKey, AppSecret } from '@/types/api'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogScrollBody, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { CreateAppSecretDialog } from '@/features/config/components/create-app-secret-dialog'
+import { scopeLabel } from '@/features/config/components/app-secret-scopes'
 import { CreateApiKeyDialog } from '@/features/config/components/create-api-key-dialog'
+import { DeleteApiKeyDialog } from '@/features/config/components/delete-api-key-dialog'
+import { toast } from 'sonner'
 
-interface APIKeysDialogProps {
-  app: App
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
+interface APIKeysDialogProps { app: App; open: boolean; onOpenChange: (open: boolean) => void }
 
 export function APIKeysDialog({ app, open, onOpenChange }: APIKeysDialogProps) {
-  const [apiKeys, setAPIKeys] = useState<AppAPIKey[]>([])
-  const [loading, setLoading] = useState(true)
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-
-  useEffect(() => {
-    if (open && app) {
-      loadAPIKeys()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, app])
-
-  const loadAPIKeys = async () => {
+  const [secrets, setSecrets] = useState<AppSecret[]>([])
+  const [loading, setLoading] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [apiKeys, setApiKeys] = useState<AppAPIKey[]>([])
+  const [createApiKeyOpen, setCreateApiKeyOpen] = useState(false)
+  const [deleteApiKeyOpen, setDeleteApiKeyOpen] = useState(false)
+  const [selectedApiKey, setSelectedApiKey] = useState<AppAPIKey | null>(null)
+  const load = async () => {
     try {
       setLoading(true)
-      const keys = await AppService.getAppAPIKeys(app.id)
-      setAPIKeys(keys)
-    } catch (error) {
-      console.error('加载API密钥失败:', error)
-      toast.error('加载API密钥失败')
-    } finally {
-      setLoading(false)
+      const [nextSecrets, nextApiKeys] = await Promise.all([
+        app.role === 'owner' ? AppService.getAppSecrets(app.id) : Promise.resolve([]),
+        AppService.getAppAPIKeys(app.id),
+      ])
+      setSecrets(nextSecrets)
+      setApiKeys(nextApiKeys)
     }
+    catch (error) { toast.error((error as Error).message || '加载应用凭证失败') }
+    finally { setLoading(false) }
   }
+  useEffect(() => { if (open) load() }, [open, app.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getStatusBadge = (status: number) => {
-    return status === 1
-      ? { label: '有效', className: 'bg-green-100 text-green-800' }
-      : { label: '禁用', className: 'bg-red-100 text-red-800' }
-  }
-
-  return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              API密钥管理
-            </DialogTitle>
-            <DialogDescription>
-              管理应用 "{app.name}" 的API密钥，用于客户端SDK认证
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogScrollBody className="space-y-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium">现有API密钥</h4>
-                <Button
-                  size="sm"
-                  onClick={() => setCreateDialogOpen(true)}
-                  disabled={loading}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  创建密钥
-                </Button>
-              </div>
-
-              {loading ? (
-                <div className="h-12 bg-muted rounded animate-pulse" />
-              ) : apiKeys.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  暂无API密钥
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>名称</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>最后使用</TableHead>
-                      <TableHead>创建时间</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {apiKeys.map((apiKey) => (
-                      <TableRow key={apiKey.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{apiKey.name}</div>
-                            <div className="text-xs text-muted-foreground font-mono">
-                              ****{apiKey.last_4 || apiKey.key_suffix}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusBadge(apiKey.status).className}>
-                            {getStatusBadge(apiKey.status).label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {apiKey.last_used
-                            ? new Date(apiKey.last_used).toLocaleString('zh-CN', {
-                                year: 'numeric',
-                                month: '2-digit',
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : '从未使用'}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {new Date(apiKey.created_at).toLocaleString('zh-CN', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-          </DialogScrollBody>
-
-          <Button onClick={() => onOpenChange(false)}>关闭</Button>
-        </DialogContent>
-      </Dialog>
-
-      <CreateApiKeyDialog
-        app={app}
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        onSuccess={loadAPIKeys}
-      />
-    </>
-  )
+  return <>
+    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[80vh] overflow-hidden sm:max-w-[760px]"><DialogHeader><DialogTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />应用凭证</DialogTitle><DialogDescription>App Key 用于客户端 SDK；App Secret 仅用于服务端 API。</DialogDescription></DialogHeader><DialogScrollBody className="space-y-5">
+      <div className="space-y-2"><div className="text-sm font-medium">App Key</div><div className="flex gap-2"><Input value={app.app_key || ''} readOnly className="font-mono" /><Button size="icon" variant="outline" title="复制 App Key" onClick={() => navigator.clipboard.writeText(app.app_key)}><Copy className="h-4 w-4" /></Button></div></div>
+      {app.role === 'owner' && <div className="space-y-3"><div className="flex items-center justify-between"><div className="font-medium">App Secrets</div><Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />创建</Button></div>{loading ? <div className="py-6 text-center text-muted-foreground">加载中...</div> : secrets.length === 0 ? <div className="py-6 text-center text-muted-foreground">尚未创建 App Secret</div> : <Table><TableHeader><TableRow><TableHead>名称</TableHead><TableHead>权限</TableHead><TableHead>状态</TableHead></TableRow></TableHeader><TableBody>{secrets.map((secret) => <TableRow key={secret.id}><TableCell><div>{secret.name}</div><code className="text-xs text-muted-foreground">{secret.prefix}...{secret.suffix}</code></TableCell><TableCell><div className="flex flex-wrap gap-1">{secret.scopes.map((scope) => <Badge key={scope} variant="secondary">{scopeLabel(scope)}</Badge>)}</div></TableCell><TableCell>{secret.status === 1 && !secret.revoked_at ? '有效' : '已撤销'}</TableCell></TableRow>)}</TableBody></Table>}</div>}
+      <div className="space-y-3"><div className="flex items-start justify-between gap-4"><div><div className="font-medium">API 密钥</div><div className="text-xs text-muted-foreground">保留管理能力，当前不参与认证。</div></div><Button size="sm" variant="outline" onClick={() => setCreateApiKeyOpen(true)}><Plus className="mr-2 h-4 w-4" />创建</Button></div>{loading ? <div className="py-6 text-center text-muted-foreground">加载中...</div> : apiKeys.length === 0 ? <div className="py-6 text-center text-muted-foreground">暂无 API 密钥</div> : <Table><TableHeader><TableRow><TableHead>名称</TableHead><TableHead>密钥</TableHead><TableHead className="text-right">操作</TableHead></TableRow></TableHeader><TableBody>{apiKeys.map((apiKey) => <TableRow key={apiKey.id}><TableCell>{apiKey.name}</TableCell><TableCell><code className="text-xs text-muted-foreground">{apiKey.key_prefix}...{apiKey.key_suffix}</code></TableCell><TableCell className="text-right"><Button size="icon" variant="ghost" title="删除 API 密钥" onClick={() => { setSelectedApiKey(apiKey); setDeleteApiKeyOpen(true) }}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>)}</TableBody></Table>}</div>
+    </DialogScrollBody><Button onClick={() => onOpenChange(false)}>关闭</Button></DialogContent></Dialog>
+    <CreateAppSecretDialog app={app} open={createOpen} onOpenChange={setCreateOpen} onSuccess={load} />
+    <CreateApiKeyDialog app={app} open={createApiKeyOpen} onOpenChange={setCreateApiKeyOpen} onSuccess={load} />
+    <DeleteApiKeyDialog app={app} apiKey={selectedApiKey} open={deleteApiKeyOpen} onOpenChange={setDeleteApiKeyOpen} onSuccess={load} />
+  </>
 }

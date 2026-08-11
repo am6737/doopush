@@ -51,6 +51,20 @@ class DooPushManagementModeTest {
     }
 
     @Test
+    fun tokenAcquisitionSetupPreservesExistingConfiguration() {
+        val ctx = androidx.test.core.app.ApplicationProvider
+            .getApplicationContext<android.content.Context>()
+        val manager = DooPushManager.getInstance()
+        manager.configure(ctx, "configured_app", "dp_ak_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+
+        manager.configureForTokenAcquisition(ctx)
+
+        assertEquals("configured_app", manager.getConfig()?.appId)
+        assertEquals("dp_ak_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", manager.getConfig()?.appKey)
+        assertEquals(true, DooPushStatistics.isReportingEnabled())
+    }
+
+    @Test
     fun registerDeviceBeforeConfigureCallsOnError() {
         // configure 还没调用过的全新 manager 实例无法（在该 JVM 中）轻易构造，
         // 但 Robolectric 不会跨 @Test 复用 SDK 状态——若另一测试已 configure，
@@ -72,7 +86,7 @@ class DooPushManagementModeTest {
     fun registerDeviceWithUnknownVendorCallsOnError() {
         val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         try {
-            DooPushManager.getInstance().configure(ctx, "test_app", "test_key")
+            DooPushManager.getInstance().configure(ctx, "test_app", "dp_ak_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         } catch (_: Throwable) { /* configure 在某些 robolectric 环境下会因网络异常而抛，忽略 */ }
 
         var errorReceived: com.doopush.sdk.models.DooPushError? = null
@@ -91,7 +105,7 @@ class DooPushManagementModeTest {
     fun registerDeviceWhileAnotherRegistrationInProgressCallsOnError() {
         val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         try {
-            DooPushManager.getInstance().configure(ctx, "test_app", "test_key")
+            DooPushManager.getInstance().configure(ctx, "test_app", "dp_ak_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         } catch (_: Throwable) { /* configure 在 robolectric 环境下可能因网络异常抛出，忽略 */ }
 
         // 强制设置 isConfigured = true 以绕过 checkInitialized()（configure 在 robolectric 下可能未完成）
@@ -100,6 +114,12 @@ class DooPushManagementModeTest {
         val configuredAtomic = isConfiguredField.get(DooPushManager.getInstance())
             as java.util.concurrent.atomic.AtomicBoolean
         val previousConfigured = configuredAtomic.getAndSet(true)
+
+        val hasConfigField = DooPushManager::class.java.getDeclaredField("hasDooPushConfiguration")
+        hasConfigField.isAccessible = true
+        val hasConfigAtomic = hasConfigField.get(DooPushManager.getInstance())
+            as java.util.concurrent.atomic.AtomicBoolean
+        val previousHasConfig = hasConfigAtomic.getAndSet(true)
 
         // 强制设置 isRegistering 为 true 以模拟并发：用反射访问私有字段
         val isRegisteringField = DooPushManager::class.java.getDeclaredField("isRegistering")
@@ -129,6 +149,7 @@ class DooPushManagementModeTest {
             // 还原状态，避免污染后续测试
             atomic.set(previous)
             configuredAtomic.set(previousConfigured)
+            hasConfigAtomic.set(previousHasConfig)
         }
     }
 }

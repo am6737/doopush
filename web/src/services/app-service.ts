@@ -1,5 +1,5 @@
 import apiClient from './api-client'
-import type { App, AppAPIKey, AppConfig, AppInvitation, AppInviteCandidate, AppMember, AppRole, PaginationRequest } from '@/types/api'
+import type { App, AppAPIKey, AppConfig, AppInvitation, AppInviteCandidate, AppMember, AppRole, AppSecret, AppSecretScope, PaginationRequest } from '@/types/api'
 
 export class AppService {
   /**
@@ -78,32 +78,38 @@ export class AppService {
     return apiClient.delete(`/apps/${appId}/members/${userId}`)
   }
 
-  /**
-   * 获取应用API密钥列表
-   */
+  static async getAppSecrets(appId: number): Promise<AppSecret[]> {
+    return apiClient.get(`/apps/${appId}/app-secrets`)
+  }
+
+  static async createAppSecret(appId: number, data: {
+    name: string
+    scopes: AppSecretScope[]
+    expires_at?: string | null
+  }): Promise<{ app_secret: string; secret_info: AppSecret; warning: string }> {
+    return apiClient.post(`/apps/${appId}/app-secrets`, data)
+  }
+
+  static async updateAppSecretScopes(appId: number, secretId: number, scopes: AppSecretScope[]): Promise<AppSecret> {
+    return apiClient.patch(`/apps/${appId}/app-secrets/${secretId}`, { scopes })
+  }
+
+  static async revokeAppSecret(appId: number, secretId: number): Promise<void> {
+    return apiClient.delete(`/apps/${appId}/app-secrets/${secretId}`)
+  }
+
   static async getAppAPIKeys(appId: number): Promise<AppAPIKey[]> {
     return apiClient.get(`/apps/${appId}/api-keys`)
   }
 
-  /**
-   * 创建API密钥
-   */
-  static async createAPIKey(appId: number, data: {
-    name: string
-  }): Promise<{ api_key: string; key_info: AppAPIKey; warning?: string }> {
+  static async createAPIKey(appId: number, data: { name: string }): Promise<{ api_key: string; key_info: AppAPIKey; warning?: string }> {
     return apiClient.post(`/apps/${appId}/api-keys`, data)
   }
 
-  /**
-   * 删除API密钥
-   */
   static async deleteAPIKey(appId: number, keyId: number): Promise<void> {
     return apiClient.delete(`/apps/${appId}/api-keys/${keyId}`)
   }
 
-  /**
-   * 获取应用API密钥列表 (别名)
-   */
   static async getAPIKeys(appId: number): Promise<AppAPIKey[]> {
     return this.getAppAPIKeys(appId)
   }

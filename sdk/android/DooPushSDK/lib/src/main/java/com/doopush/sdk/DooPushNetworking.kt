@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
  * 负责与DooPush API服务器的网络通信，包括设备注册、token更新等操作
  */
 class DooPushNetworking(private val config: DooPushConfig) {
+	@Volatile private var installationToken: String? = null
     
     companion object {
         private const val TAG = "DooPushNetworking"
@@ -52,15 +53,18 @@ class DooPushNetworking(private val config: DooPushConfig) {
             builder.addInterceptor(loggingInterceptor)
         }
         
-        // 添加API Key拦截器
+        // 注册使用公开 App Key，其余客户端请求使用安装实例凭证。
         builder.addInterceptor { chain ->
             val originalRequest = chain.request()
-            val authenticatedRequest = originalRequest.newBuilder()
-                .header("X-API-Key", config.apiKey)
+            val requestBuilder = originalRequest.newBuilder()
                 .header("Content-Type", "application/json")
                 .header("User-Agent", "DooPush-Android-SDK/1.2.2")
-                .build()
-            chain.proceed(authenticatedRequest)
+            if (originalRequest.url.encodedPath.endsWith("/devices")) {
+                requestBuilder.header("X-App-Key", config.appKey)
+            } else {
+                installationToken?.let { requestBuilder.header("Authorization", "Bearer $it") }
+            }
+            chain.proceed(requestBuilder.build())
         }
         
         builder.build()
@@ -70,6 +74,10 @@ class DooPushNetworking(private val config: DooPushConfig) {
     
     // 设备Token提供者
     private var deviceTokenProvider: (() -> String?)? = null
+
+	fun setInstallationToken(token: String?) {
+		installationToken = token
+	}
     
     /**
      * 设置设备Token提供者
@@ -150,7 +158,7 @@ class DooPushNetworking(private val config: DooPushConfig) {
      * 设备注册回调接口
      */
     interface RegisterDeviceCallback {
-        fun onSuccess(deviceId: String)
+        fun onSuccess(deviceId: String, installationToken: String)
         fun onError(error: DooPushError)
     }
     
@@ -218,6 +226,7 @@ class DooPushNetworking(private val config: DooPushConfig) {
 
                             if (apiResponse != null && apiResponse.data != null) {
                                 val deviceId = extractDeviceId(apiResponse.data)
+								val installationToken = extractInstallationToken(apiResponse.data)
                                 if (deviceId.isNullOrBlank()) {
                                     Log.e(TAG, "设备注册响应缺少设备ID")
                                     callback.onError(DooPushError(
@@ -228,7 +237,12 @@ class DooPushNetworking(private val config: DooPushConfig) {
                                     return
                                 }
                                 Log.d(TAG, "设备注册成功: ${apiResponse.message}")
-                                callback.onSuccess(deviceId)
+								if (installationToken.isNullOrBlank()) {
+									callback.onError(DooPushError(code = DooPushError.ERROR_API_INVALID_RESPONSE, message = "服务器响应缺少安装凭证"))
+									return
+								}
+								setInstallationToken(installationToken)
+								callback.onSuccess(deviceId, installationToken)
                             } else {
                                 Log.e(TAG, "设备注册响应数据为空")
                                 callback.onError(DooPushError(
@@ -276,6 +290,9 @@ class DooPushNetworking(private val config: DooPushConfig) {
         }
         return null
     }
+
+	private fun extractInstallationToken(data: JsonObject): String? =
+		data.get("installation_token")?.takeIf { it.isJsonPrimitive }?.asString
     
     /**
      * 更新设备Token
@@ -354,7 +371,7 @@ class DooPushNetworking(private val config: DooPushConfig) {
     ) {
         val errorCode = when (response.code) {
             400 -> DooPushError.ERROR_API_DEVICE_REGISTRATION_FAILED
-            401 -> DooPushError.CONFIG_INVALID_API_KEY
+            401 -> DooPushError.CONFIG_INVALID_APP_KEY
             422 -> DooPushError.ERROR_API_DEVICE_REGISTRATION_FAILED
             else -> DooPushError.ERROR_NETWORK_REQUEST_FAILED
         }
@@ -389,7 +406,7 @@ class DooPushNetworking(private val config: DooPushConfig) {
     ) {
         val errorCode = when (response.code) {
             400 -> DooPushError.ERROR_API_TOKEN_UPDATE_FAILED
-            401 -> DooPushError.CONFIG_INVALID_API_KEY
+            401 -> DooPushError.CONFIG_INVALID_APP_KEY
             404 -> DooPushError.ERROR_API_TOKEN_UPDATE_FAILED
             else -> DooPushError.ERROR_NETWORK_REQUEST_FAILED
         }
@@ -580,7 +597,7 @@ class DooPushNetworking(private val config: DooPushConfig) {
     ) {
         val errorCode = when (response.code) {
             400 -> DooPushError.API_BAD_REQUEST
-            401 -> DooPushError.CONFIG_INVALID_API_KEY
+            401 -> DooPushError.CONFIG_INVALID_APP_KEY
             404 -> DooPushError.API_NOT_FOUND
             else -> DooPushError.ERROR_NETWORK_REQUEST_FAILED
         }

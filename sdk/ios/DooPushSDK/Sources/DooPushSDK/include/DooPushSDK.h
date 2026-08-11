@@ -42,7 +42,7 @@ FOUNDATION_EXPORT const unsigned char DooPushSDKVersionString[];
  * 
  * DooPushManager.shared.configure(
  *     appId: "your_app_id",
- *     apiKey: "your_api_key",
+ *     appKey: "dp_ak_xxx",
  *     baseURL: "https://doopush.com/api/v1"
  * )
  * 
@@ -63,7 +63,7 @@ FOUNDATION_EXPORT const unsigned char DooPushSDKVersionString[];
  * @import DooPushSDK;
  * 
  * [[DooPushManager sharedInstance] configureWithAppId:@"your_app_id"
- *                                               apiKey:@"your_api_key"
+ *                                               appKey:@"dp_ak_xxx"
  *                                              baseURL:@"https://doopush.com/api/v1"];
  * 
  * [[DooPushManager sharedInstance] registerForPushNotificationsWithCompletion:^(NSString *token, NSError *error) {

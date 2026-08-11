@@ -67,8 +67,8 @@ sequenceDiagram
 
     App->>SDK: 初始化 SDK
     SDK->>API: 注册设备
-    API-->>SDK: 返回设备信息
-    SDK->>Gateway: WebSocket 握手鉴权
+    API-->>SDK: 返回设备信息和 Installation Token
+    SDK->>Gateway: 使用 Installation Token 握手鉴权
     Gateway-->>SDK: 维持长连接（在线状态）
 
     Note over API: 管理员发送推送
@@ -89,7 +89,8 @@ erDiagram
     App ||--o{ Device : contains
     App ||--o{ PushLog : has
     App ||--o{ AppConfig : has
-    App ||--o{ AppAPIKey : has
+    App ||--o{ AppSecret : has
+    Device ||--|| InstallationCredential : authenticates
     
     Device ||--o{ DeviceTagMap : has
     Device ||--o{ DeviceGroupMap : belongs_to

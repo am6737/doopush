@@ -350,7 +350,7 @@ class MyApplication : Application() {
             DooPushManager.getInstance().configure(
                 context = this,
                 appId = "your_app_id",           // DooPush 应用ID
-                apiKey = "your_api_key",         // DooPush API Key
+                appKey = "dp_ak_xxx",            // DooPush App Key
                 baseURL = "https://doopush.com/api/v1" // 可选，默认为官方服务
             )
             
